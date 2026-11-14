@@ -2,9 +2,9 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 
-The script generates a report from a Mattermost channel and updates monitoring pages in Confluence to track alerts. 
+This script generates a report from a Mattermost channel and updates the monitoring pages in Confluence to track alerts. 
 
-**This project is designed to address real production needs.**
+**Designed to address real production needs by facilitating the tracking of alerts for a team that uses Mattermost as an alert notification tool and Confluence as a documentation repository for tracking.**
 
 ---
 
