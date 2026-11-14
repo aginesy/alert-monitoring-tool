@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Confluence REST client configuration
 confluence_config = {
     "url": os.getenv("CONFLUENCE_URL"),
     "token": os.getenv("CONFLUENCE_TOKEN"),

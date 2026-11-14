@@ -8,7 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 
 class TemplateRenderer:
     """
-    Service responsable du rendu des templates Jinja avec cache d'environnement.
+    Service responsible for rendering Jinja templates with environment caching.
     """
 
     def __init__(self) -> None:
@@ -20,7 +20,7 @@ class TemplateRenderer:
         context: Mapping[str, Any],
     ) -> str:
         """
-        Rend un template Jinja avec le contexte fourni.
+        Renders a Jinja template with the provided context dictionary.
         """
         template_path = Path(template_file)
 

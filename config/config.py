@@ -2,10 +2,10 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Charger les variables d'environnement si non chargées
+# Load environment variables if not already loaded
 load_dotenv()
 
-# Chemins des templates et des rapports
+# Template and report paths
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEFAULT_HOURS = 24
@@ -13,17 +13,22 @@ TEMPLATE_FILE = "alerting_template.html"
 OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_FILE = OUTPUT_DIR / "alertes.html"
 
-# Fuseau horaire pour la restitution temporelle des rapports
+# Timezone for report formatting
 TIMEZONE = os.getenv("APP_TIMEZONE", "Europe/Paris")
 
-# Nombre maximal d'alertes détaillées affichées dans la section finale pour préserver la réactivité du DOM
-# 0 ou négatif pour désactiver la limite
+# Confluence tracking default flag (supports CONFLUENCE_TRACKING with SUIVI_CONFLUENCE fallback)
+CONFLUENCE_TRACKING = (
+    os.getenv("CONFLUENCE_TRACKING") or os.getenv("SUIVI_CONFLUENCE", "false")
+).lower() in ("true", "1", "yes")
+
+# Maximum number of detailed alerts displayed in the final section to keep the DOM responsive
+# Set to 0 or negative to disable the limit
 try:
     MAX_DETAILED_ALERTS = int(os.getenv("MAX_DETAILED_ALERTS", "200"))
 except ValueError:
     MAX_DETAILED_ALERTS = 200
 
-# Titres d'alertes à exclure du rapport HTML (insensible à la casse)
+# Alert titles to exclude from the HTML report (case-insensitive)
 _default_excluded = ["Batche(s)"]
 _env_excluded = os.getenv("EXCLUDED_ALERT_TITLES")
 if _env_excluded:
@@ -31,7 +36,7 @@ if _env_excluded:
 else:
     EXCLUDED_ALERT_TITLES = _default_excluded
 
-# Configuration des liens d'artefacts GitLab
+# GitLab CI/CD artifact link configuration
 GITLAB_PROJECT_URL = os.getenv(
     "CI_PROJECT_URL", "https://gitlab.example.com/username/alerting"
 )
@@ -57,5 +62,3 @@ else:
         f"{GITLAB_PROJECT_URL}/-/jobs/artifacts/{GITLAB_BRANCH}/browse/output"
         f"?job={GITLAB_JOB_NAME}"
     )
-
-

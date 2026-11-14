@@ -1263,91 +1263,91 @@
     </style>
 </head>
 <body id="top">
-    <!-- Menu de navigation fixe en haut de l'écran -->
+    <!-- Sticky top navigation bar -->
     <nav class="nav-bar">
         <div class="nav-inner">
             <div class="nav-links">
-                <a href="#section-resume" class="nav-link">📊 Résumé</a>
+                <a href="#section-resume" class="nav-link">📊 Summary</a>
                 {% if timeline and timeline.has_data %}
-                    <a href="#section-timeline" class="nav-link">📈 Frise chronologique ({{ total_categories or (timeline.lanes|length) }})</a>
-                    <select class="nav-category-select" onchange="navigateToCategory(this.value)" title="Accéder directement à une catégorie d'alerte dans la frise">
-                        <option value="">📂 Aller à une catégorie...</option>
+                    <a href="#section-timeline" class="nav-link">📈 Timeline ({{ total_categories or (timeline.lanes|length) }})</a>
+                    <select class="nav-category-select" onchange="navigateToCategory(this.value)" title="Jump directly to an alert category in the timeline">
+                        <option value="">📂 Jump to category...</option>
                         {% for lane in timeline.lanes %}
                             <option value="#cat-{{ loop.index }}">{{ lane.category_name[:42] }}{% if lane.category_name|length > 42 %}...{% endif %} ({{ lane.count }})</option>
                         {% endfor %}
                     </select>
                 {% endif %}
                 {% if alerts %}
-                    <a href="#section-detail" class="nav-link">📝 Détail des alertes ({{ total_alerts }})</a>
+                    <a href="#section-detail" class="nav-link">📝 Alert Details ({{ total_alerts }})</a>
                 {% endif %}
-                {% if suivi_confluence and confluence_page_url %}
-                    <a href="{{ confluence_page_url }}" target="_blank" rel="noopener noreferrer" class="nav-link nav-link-confluence" title="Accéder au registre des alertes sur Confluence">📋 Suivi Confluence ↗</a>
+                {% if (suivi_confluence or confluence_tracking) and confluence_page_url %}
+                    <a href="{{ confluence_page_url }}" target="_blank" rel="noopener noreferrer" class="nav-link nav-link-confluence" title="Open alerts register on Confluence">📋 Confluence Review ↗</a>
                 {% endif %}
             </div>
-            <a href="#top" class="nav-back-top" title="Revenir tout en haut du rapport">↑ Haut</a>
+            <a href="#top" class="nav-back-top" title="Back to top">↑ Top</a>
         </div>
     </nav>
 
     <div class="container">
         <div class="header">
-            <h1>🚨 Rapport d'Alerting</h1>
+            <h1>🚨 Alerting Report</h1>
             <div class="meta-info">
-                <span>Généré le : {{ generation_date }}</span>
-                <span>Plage analysée : {{ hours }} dernières heures</span>
+                <span>Generated on: {{ generation_date }}</span>
+                <span>Analyzed window: Last {{ hours }} hours</span>
             </div>
         </div>
 
         <div class="content">
-            <!-- Section 1 : Résumé global -->
+            <!-- Section 1 : Global summary -->
             <div class="summary-card" id="section-resume">
                 <div class="summary-card-header">
-                    <p style="margin: 0;">📊 <strong>{{ total_alerts }}</strong> alerte(s) détectée(s) sur les dernières {{ hours }} heures{% if total_categories %} (réparties en <strong>{{ total_categories }}</strong> catégorie(s)){% endif %}.</p>
+                    <p style="margin: 0;">📊 <strong>{{ total_alerts }}</strong> alert(s) detected over the last {{ hours }} hours{% if total_categories %} (grouped into <strong>{{ total_categories }}</strong> categories){% endif %}.</p>
                 </div>
-                {% if suivi_confluence and confluence_stats and confluence_stats.TOTAL %}
+                {% if (suivi_confluence or confluence_tracking) and confluence_stats and confluence_stats.TOTAL %}
                     <div class="confluence-kpi-bar">
-                        <span class="confluence-kpi-item kpi-new">🔹 <strong>{{ confluence_stats.NOUVELLE or 0 }}</strong> Nouvelle{{ 's' if (confluence_stats.NOUVELLE or 0) > 1 else '' }}</span>
-                        <span class="confluence-kpi-item kpi-ptpnel" style="border-left: 3px solid #7f8c8d;">⚪ <strong>{{ confluence_stats.PTPNEL or confluence_stats.NOUV or 0 }}</strong> PTPNEL</span>
-                        <span class="confluence-kpi-item kpi-progress">🔸 <strong>{{ confluence_stats['EN COURS'] or 0 }}</strong> En cours</span>
-                        <span class="confluence-kpi-item kpi-recur">🔺 <strong>{{ confluence_stats.RÉCURRENTE or 0 }}</strong> Récurrente{{ 's' if (confluence_stats.RÉCURRENTE or 0) > 1 else '' }}</span>
-                        <span class="confluence-kpi-item kpi-resolved">✅ <strong>{{ confluence_stats.RÉSOLUE or 0 }}</strong> Résolue{{ 's' if (confluence_stats.RÉSOLUE or 0) > 1 else '' }}</span>
-                        <span class="confluence-kpi-item kpi-bruit" style="border-left: 3px solid #8d6e63;">🟤 <strong>{{ confluence_stats.BRUIT or 0 }}</strong> Bruit</span>
+                        <span class="confluence-kpi-item kpi-new">🔹 <strong>{{ confluence_stats.NEW or confluence_stats.NOUVELLE or 0 }}</strong> New</span>
+                        <span class="confluence-kpi-item kpi-ptpnel" style="border-left: 3px solid #7f8c8d;">⚪ <strong>{{ confluence_stats.UNATTENDED or confluence_stats.PTPNEL or confluence_stats.NOUV or 0 }}</strong> Unattended</span>
+                        <span class="confluence-kpi-item kpi-progress">🔸 <strong>{{ confluence_stats['IN PROGRESS'] or confluence_stats['EN COURS'] or 0 }}</strong> In Progress</span>
+                        <span class="confluence-kpi-item kpi-recur">🔺 <strong>{{ confluence_stats.RECURRING or confluence_stats.RÉCURRENTE or 0 }}</strong> Recurring</span>
+                        <span class="confluence-kpi-item kpi-resolved">✅ <strong>{{ confluence_stats.RESOLVED or confluence_stats.RÉSOLUE or 0 }}</strong> Resolved</span>
+                        <span class="confluence-kpi-item kpi-bruit" style="border-left: 3px solid #8d6e63;">🟤 <strong>{{ confluence_stats.NOISE or confluence_stats.BRUIT or 0 }}</strong> Noise</span>
                     </div>
                 {% endif %}
             </div>
 
-            <!-- Section 2 : Frise chronologique -->
+            <!-- Section 2 : Timeline -->
             {% if timeline and timeline.has_data %}
                 <div class="section-header" id="section-timeline">
-                    <h2>📈 Frise chronologique</h2>
+                    <h2>📈 Chronological Timeline</h2>
                 </div>
 
                 <div class="timeline-graph-card">
                     <div class="timeline-graph-header">
                         <div class="timeline-graph-title">
-                            <span>⏱️ Chronologie continue des alertes</span>
+                            <span>⏱️ Continuous Alert Timeline</span>
                             <span style="font-weight: 400; font-size: 13px; color: #64748b;">
-                                (Du {{ timeline.start_label }} au {{ timeline.end_label }} &bull; {{ timeline.duration_hours }}h)
+                                (From {{ timeline.start_label }} to {{ timeline.end_label }} &bull; {{ timeline.duration_hours }}h)
                             </span>
                         </div>
                         <div class="timeline-legend">
                             <button type="button" class="btn-toggle-all" onclick="toggleAllTimelineLanes(this)">
-                                Tout déplier
+                                Expand All
                             </button>
                             <div class="legend-item">
                                 <span class="legend-dot firing"></span>
-                                <span>Déclenchement (FIRING)</span>
+                                <span>Trigger (FIRING)</span>
                             </div>
                             <div class="legend-item">
                                 <span class="legend-dot resolved"></span>
-                                <span>Résolution (RESOLVED)</span>
+                                <span>Resolution (RESOLVED)</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Pistes temporelles dépliables par catégorie d'alerte (Lanes) -->
+                    <!-- Expandable timeline lanes per alert category -->
                     <div class="timeline-lanes-body">
                         <div class="timeline-grid">
-                            <!-- Colonnes d'arrière-plan alternées par jour -->
+                            <!-- Alternating day zone columns -->
                             {% if timeline.days %}
                                 <div class="timeline-day-zones-layer">
                                     {% for d in timeline.days %}
@@ -1356,14 +1356,14 @@
                                 </div>
                             {% endif %}
 
-                            <!-- Lignes de repère verticales du temps -->
+                            <!-- Vertical time grid lines -->
                             <div class="timeline-vgrid-lines">
                                 {% for tick in timeline.ticks %}
                                     <div class="vgrid-line" style="left: {{ tick.pct }}%;"></div>
                                 {% endfor %}
                             </div>
 
-                            <!-- Lignes de démarcation minuit entre les jours -->
+                            <!-- Midnight day separators -->
                             {% if timeline.day_separators %}
                                 <div class="timeline-day-separators-layer">
                                     {% for sep in timeline.day_separators %}
@@ -1374,11 +1374,11 @@
                                 </div>
                             {% endif %}
 
-                            <!-- En-tête de période (mois / semaines) si la plage temporelle est étendue -->
+                            <!-- Upper period header (months/weeks) for extended time spans -->
                             {% if timeline.periods %}
                                 <div class="timeline-periods-header-row">
                                     <div class="timeline-periods-spacer">
-                                        <span>{{ timeline.period_title or '📅 Période' }}</span>
+                                        <span>{{ timeline.period_title or '📅 Period' }}</span>
                                     </div>
                                     <div class="timeline-periods-track">
                                         {% for p in timeline.periods %}
@@ -1390,7 +1390,7 @@
                                 </div>
                             {% endif %}
 
-                            <!-- Couloirs horizontaux dépliables par catégorie -->
+                            <!-- Category horizontal lanes -->
                             {% for lane in timeline.lanes %}
                                 <details class="timeline-lane-details" id="cat-{{ loop.index }}">
                                     <summary class="timeline-lane-summary">
@@ -1398,7 +1398,7 @@
                                             <div class="timeline-lane-meta">
                                                 <span class="timeline-chevron">▶</span>
                                                 <span class="timeline-count-badge">{{ lane.count }} occurrence{{ 's' if lane.count > 1 else '' }}</span>
-                                                {% if suivi_confluence and lane.tracking and lane.tracking.status %}
+                                                {% if (suivi_confluence or confluence_tracking) and lane.tracking and lane.tracking.status %}
                                                     <span class="tracking-pill status-{{ lane.tracking.status|lower|replace(' ', '-') }}">{{ lane.tracking.status }}</span>
                                                 {% endif %}
                                             </div>
@@ -1414,30 +1414,30 @@
                                         </div>
                                     </summary>
 
-                                    <!-- Détail par mois et par jour de la catégorie -->
+                                    <!-- Category monthly and daily drill-down -->
                                     {% if lane.months %}
                                         <div class="timeline-lane-dropdown">
-                                            {% if suivi_confluence and lane.tracking %}
+                                            {% if (suivi_confluence or confluence_tracking) and lane.tracking %}
                                                 <div class="confluence-tracking-card">
                                                     <div class="confluence-tracking-header">
                                                         <div class="confluence-tracking-title">
                                                             <span>📋</span>
-                                                            <strong>Suivi du point de suivi</strong>
+                                                            <strong>Review Action Item Tracking</strong>
                                                             <span class="tracking-pill status-{{ lane.tracking.status|lower|replace(' ', '-') }}">{{ lane.tracking.status }}</span>
                                                         </div>
                                                         <div class="confluence-tracking-meta">
                                                             {% if lane.tracking.assignee %}
-                                                                <span class="tracking-assignee">👤 <strong>Porteur :</strong> {{ lane.tracking.assignee }}</span>
+                                                                <span class="tracking-assignee">👤 <strong>Assignee:</strong> {{ lane.tracking.assignee }}</span>
                                                             {% endif %}
                                                             {% if confluence_page_url %}
-                                                                <a href="{{ confluence_page_url }}#{{ lane.tracking.slug }}" target="_blank" rel="noopener noreferrer" class="tracking-confluence-link" title="Consulter ou éditer cette alerte sur Confluence">
-                                                                    Éditer sur Confluence ↗
+                                                                <a href="{{ confluence_page_url }}#{{ lane.tracking.slug }}" target="_blank" rel="noopener noreferrer" class="tracking-confluence-link" title="View or edit this alert on Confluence">
+                                                                    Edit on Confluence ↗
                                                                 </a>
                                                             {% endif %}
                                                         </div>
                                                     </div>
                                                     <div class="confluence-tracking-actions">
-                                                        <strong>Actions décidées :</strong>
+                                                        <strong>Decided Action Items:</strong>
                                                         <div class="tracking-actions-content">
                                                             {{ lane.tracking.actions_html|safe }}
                                                         </div>
@@ -1451,7 +1451,7 @@
                                                             <span class="month-chevron">▶</span>
                                                             <span>🗓️ {{ month.month_label }}</span>
                                                         </div>
-                                                        <span class="month-count-badge">{{ month.count }} alerte{{ 's' if month.count > 1 else '' }}</span>
+                                                        <span class="month-count-badge">{{ month.count }} alert{{ 's' if month.count > 1 else '' }}</span>
                                                     </summary>
                                                     <div class="month-days">
                                                         {% for day in month.days %}
@@ -1461,7 +1461,7 @@
                                                                         <span class="day-chevron">▶</span>
                                                                         <span>📅 {{ day.date_label }}</span>
                                                                     </div>
-                                                                    <span class="day-count-badge">{{ day.count }} alerte{{ 's' if day.count > 1 else '' }}</span>
+                                                                    <span class="day-count-badge">{{ day.count }} alert{{ 's' if day.count > 1 else '' }}</span>
                                                                 </summary>
                                                                 <ul class="occurrence-list">
                                                                     {% for occ in day.occurrences %}
@@ -1477,9 +1477,9 @@
                                                                                 {% endif %}
                                                                             </div>
                                                                             <div class="occurrence-right">
-                                                                                <a class="occurrence-link-local" href="#alert-{{ occ.index }}" title="Consulter le message complet ci-dessous">Détail #{{ occ.index }} ↓</a>
+                                                                                <a class="occurrence-link-local" href="#alert-{{ occ.index }}" title="View full message below">Detail #{{ occ.index }} ↓</a>
                                                                                 {% if occ.permalink %}
-                                                                                    <a class="occurrence-link-mm" href="{{ occ.permalink }}" target="_blank" rel="noopener noreferrer" title="Ouvrir directement cette alerte sur Mattermost">
+                                                                                    <a class="occurrence-link-mm" href="{{ occ.permalink }}" target="_blank" rel="noopener noreferrer" title="Open this alert directly in Mattermost">
                                                                                         💬 Mattermost ↗
                                                                                     </a>
                                                                                 {% endif %}
@@ -1497,9 +1497,9 @@
                                 </details>
                             {% endfor %}
 
-                            <!-- Axe du temps horizontal gradué en bas -->
+                            <!-- Bottom graduated horizontal time axis -->
                             <div class="timeline-axis-row">
-                                <div class="timeline-axis-spacer">Axe du temps ➔</div>
+                                <div class="timeline-axis-spacer">Time Axis ➔</div>
                                 <div class="timeline-axis-scale">
                                     {% for tick in timeline.ticks %}
                                         <div class="axis-tick" style="left: {{ tick.pct }}%;">
@@ -1514,14 +1514,14 @@
                 </div>
             {% endif %}
 
-            <!-- Section 4 : Détail chronologique des alertes récentes (Repliable par défaut) -->
+            <!-- Section 4 : Chronological alert details -->
             {% if alerts %}
                 <details class="detail-section-card" id="section-detail">
                     <summary class="detail-section-header">
                         <div class="detail-header-left">
                             <span class="detail-chevron">▶</span>
                             <h2 style="margin: 0; font-size: 16px; color: #1e293b; display: flex; align-items: center; gap: 8px;">
-                                📝 Détail chronologique des alertes ({% if detailed_limited %}les {{ detailed_alerts|length }} plus récentes sur {{ total_alerts }}{% else %}{{ total_alerts }}{% endif %})
+                                📝 Chronological Alert Details ({% if detailed_limited %}{{ detailed_alerts|length }} most recent of {{ total_alerts }}{% else %}{{ total_alerts }}{% endif %})
                             </h2>
                         </div>
                         <div class="category-header-right">
@@ -1532,7 +1532,7 @@
                     <div class="detail-section-body">
                         {% if detailed_limited %}
                             <div class="alert-limit-banner">
-                                ℹ️ Affichage restreint aux <strong>{{ detailed_alerts|length }} alertes les plus récentes</strong> sur un total de <strong>{{ total_alerts }}</strong> afin de garantir un affichage fluide du rapport. Retrouvez l'intégralité des alertes horodatées dans la frise ci-dessus ou directement sur Mattermost.
+                                ℹ️ Display restricted to the <strong>{{ detailed_alerts|length }} most recent alerts</strong> out of <strong>{{ total_alerts }}</strong> to maintain optimal browser performance. All alerts are charted in the timeline above or accessible in Mattermost.
                             </div>
                         {% endif %}
                         {% for alert in detailed_alerts %}
@@ -1544,11 +1544,11 @@
                                             <span class="alert-cat-pill">{{ alert.category }}</span>
                                         {% endif %}
                                         {% if alert.permalink %}
-                                            <a class="alert-mm-btn" href="{{ alert.permalink }}" target="_blank" rel="noopener noreferrer" title="Retrouver cette alerte sur Mattermost">
-                                                💬 Ouvrir sur Mattermost ↗
+                                            <a class="alert-mm-btn" href="{{ alert.permalink }}" target="_blank" rel="noopener noreferrer" title="View alert in Mattermost">
+                                                💬 Open in Mattermost ↗
                                             </a>
                                         {% endif %}
-                                        <span class="alert-badge">Alerte #{{ alert.index or loop.index }}</span>
+                                        <span class="alert-badge">Alert #{{ alert.index or loop.index }}</span>
                                     </div>
                                 </div>
                                 <div class="alert-body">{{ alert.message }}</div>
@@ -1558,17 +1558,17 @@
                 </details>
             {% else %}
                 <div class="empty-state">
-                    <p>🎉 Aucune alerte enregistrée sur la période analysée.</p>
+                    <p>🎉 No alerts recorded over the analyzed period.</p>
                 </div>
             {% endif %}
         </div>
 
         <div class="footer">
-            Plateforme I-MILO &bull; Surveillance et Alerting Mattermost
+            Open-Source Alerting &bull; Mattermost Monitoring &amp; Confluence Action Tracking
         </div>
     </div>
 
-    <!-- Tooltip flottant unique pour l'ensemble des pastilles de frise -->
+    <!-- Floating tooltip for timeline dots -->
     <div id="floating-point-tooltip" class="floating-point-tooltip"></div>
 
     <script>
@@ -1576,16 +1576,16 @@
             const allDetails = document.querySelectorAll('details.timeline-lane-details, details.month-group, details.day-group');
             const anyClosed = Array.from(allDetails).some(d => !d.open);
             allDetails.forEach(d => { d.open = anyClosed; });
-            btn.textContent = anyClosed ? 'Tout replier' : 'Tout déplier';
+            btn.textContent = anyClosed ? 'Collapse All' : 'Expand All';
         }
 
-        // Accès rapide à une catégorie depuis le menu fixe
+        // Quick jump to category from sticky navigation
         function navigateToCategory(targetHash) {
             if (!targetHash) return;
             openAndScrollToAlert(targetHash.substring(1));
         }
 
-        // Ouvrir automatiquement la section détail et faire défiler lors du clic sur un lien d'alerte
+        // Automatically expand details and scroll into view
         function openAndScrollToAlert(targetId) {
             if (!targetId) return;
             const targetEl = document.getElementById(targetId);
@@ -1606,7 +1606,7 @@
             }
         }
 
-        // Gestion optimisée par délégation d'événements (zéro surcharge mémoire)
+        // Optimized event delegation for tooltips
         const tooltip = document.getElementById('floating-point-tooltip');
 
         document.addEventListener('mouseover', function(e) {
@@ -1618,11 +1618,11 @@
             const date = point.dataset.date;
             tooltip.innerHTML = `
                 <div class="tooltip-header">
-                    <span>Alerte #${idx}</span>
+                    <span>Alert #${idx}</span>
                     <span class="tooltip-status ${type}">${status}</span>
                 </div>
                 <div>📅 ${date}</div>
-                <div style="margin-top: 4px; font-weight: 600; color: #90cdf4;">Cliquer pour voir le détail ↓</div>
+                <div style="margin-top: 4px; font-weight: 600; color: #90cdf4;">Click to view details ↓</div>
             `;
             const rect = point.getBoundingClientRect();
             tooltip.style.left = (rect.left + rect.width / 2) + 'px';

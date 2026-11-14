@@ -9,19 +9,19 @@ def test_confluence_client_build_url() -> None:
     client = ConfluenceClient(url="https://confluence.example.com", token="fake_token", page_id="12345")
     page_data = {
         "id": "12345",
-        "title": "Analyse des alertes",
+        "title": "Alert Analysis",
         "space": {"key": "ALERTS"},
-        "_links": {"webui": "/spaces/ALERTS/pages/12345/Analyse+des+alertes"},
+        "_links": {"webui": "/spaces/ALERTS/pages/12345/Alert+Analysis"},
     }
     url = client.build_page_url(page_data)
-    assert url == "https://confluence.example.com/spaces/ALERTS/pages/12345/Analyse+des+alertes"
+    assert url == "https://confluence.example.com/spaces/ALERTS/pages/12345/Alert+Analysis"
 
 
 def test_confluence_client_get_page_success() -> None:
     client = ConfluenceClient(url="https://confluence.example.com", token="fake_token", page_id="12345")
     mock_resp = MagicMock()
     mock_resp.status_code = 200
-    mock_resp.json.return_value = {"id": "12345", "title": "Page Test"}
+    mock_resp.json.return_value = {"id": "12345", "title": "Test Page"}
 
     with patch.object(client.session, "get", return_value=mock_resp) as mock_get:
         data = client.get_page("12345")
@@ -38,7 +38,7 @@ def test_confluence_client_update_page_success() -> None:
     with patch.object(client.session, "put", return_value=mock_resp) as mock_put:
         data = client.update_page(
             page_id="12345",
-            title="Page Test",
+            title="Test Page",
             space_key="ALERTS",
             storage_html="<p>Test</p>",
             next_version=2,

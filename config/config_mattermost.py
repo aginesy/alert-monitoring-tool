@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Mattermost client connection configuration
 mattermost_client_config = {
     "url": os.getenv("MATTERMOST_URL"),
     "token": os.getenv("MATTERMOST_TOKEN"),

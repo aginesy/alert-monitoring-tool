@@ -1,11 +1,11 @@
-# Exécution hebdomadaire planifiée : tous les lundis à 10h30 (Cron : 30 10 * * 1)
+# Weekly scheduled execution: every Monday at 10:30 AM (Cron: 30 10 * * 1)
 variables:
   WEEKLY_HOURS: 
     value: "--hours=168"
-    description: "Nombre d'heures pour analyser la semaine écoulée (7 jours * 24h = 168h)."
-  SUIVI_CONFLUENCE_ARG:
-    value: "--suivi-confluence=false"
-    description: "Activer le suivi et la synchronisation Confluence pour le point de suivi. (désactivée par défaut)"
+    description: "Number of hours to analyze for the past week (7 days * 24h = 168h)."
+  CONFLUENCE_TRACKING_ARG:
+    value: "--confluence-tracking=false"
+    description: "Enable Confluence tracking and synchronization for the review meeting (disabled by default)."
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
 stages:
@@ -23,7 +23,7 @@ generate_alerting_report:
       python3 -m venv venv
       ./venv/bin/python3 -m pip install --upgrade pip
       ./venv/bin/pip install -r requirements.txt
-      ./venv/bin/python3 main.py $WEEKLY_HOURS $SUIVI_CONFLUENCE_ARG
+      ./venv/bin/python3 main.py $WEEKLY_HOURS $CONFLUENCE_TRACKING_ARG
       
   artifacts:
     paths:

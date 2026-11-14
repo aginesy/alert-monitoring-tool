@@ -12,14 +12,14 @@ from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
-RE_DESCRIPTION = re.compile(r"\*\*Description\s*:\*\*\s*([^\n]+)")
-RE_TITRE_LINE = re.compile(r"^titre\s*:", re.IGNORECASE)
+RE_DESCRIPTION = re.compile(r"\*\*Description\s*:\*\*\s*([^\n]+)", re.IGNORECASE)
+RE_TITLE_LINE = re.compile(r"^(?:title|titre)\s*:", re.IGNORECASE)
 
 
 class MattermostClient:
     """
-    Client de connexion et d'extraction de données depuis Mattermost pour le projet d'alerting.
-    Optimisé pour les performances réseau (Session HTTP Keep-Alive) et la résilience (Retry/Backoff).
+    Client for connecting to and extracting data from Mattermost for the alerting project.
+    Optimized for network performance (HTTP Keep-Alive Session) and resilience (Retry/Backoff).
     """
 
     def __init__(
@@ -39,7 +39,7 @@ class MattermostClient:
         self.team = team.strip("/") if team else None
         self.tz = tz
 
-        # Pré-normalisation des règles d'exclusion pour des comparaisons rapides
+        # Pre-normalize exclusion rules for fast case-insensitive comparisons
         self.excluded_titles = [
             item.strip().lower() for item in (excluded_titles or []) if item.strip()
         ]
@@ -49,7 +49,7 @@ class MattermostClient:
             "Content-Type": "application/json",
         }
 
-        # Configuration de la session HTTP avec réutilisation de connexion et retries
+        # Configure HTTP session with connection pooling and retries
         self.session = requests.Session()
         retry_strategy = Retry(
             total=3,
@@ -68,13 +68,13 @@ class MattermostClient:
         self.close()
 
     def close(self) -> None:
-        """Ferme la session HTTP sous-jacente."""
+        """Closes the underlying HTTP session."""
         self.session.close()
 
     def get_post_permalink(self, post_id: str) -> str:
         """
-        Construit le permalien direct vers un post Mattermost.
-        Utilise le nom de team si configuré, ou la redirection universelle /parcours/pl/<post_id>.
+        Builds the direct permalink to a Mattermost post.
+        Uses the team name if configured, or the fallback /parcours/pl/<post_id>.
         """
         if self.team:
             return f"{self.url}/{self.team}/pl/{post_id}"
@@ -82,8 +82,8 @@ class MattermostClient:
 
     def _is_excluded(self, message: str, attachment_titles: list[str]) -> bool:
         """
-        Détermine si une alerte doit être exclue en fonction de la liste `excluded_titles`.
-        Vérifie les titres des pièces jointes ainsi que les lignes de titre du message.
+        Determines whether an alert should be excluded based on the `excluded_titles` list.
+        Checks both attachment titles and message title lines.
         """
         if not self.excluded_titles:
             return False
@@ -91,15 +91,15 @@ class MattermostClient:
         norm_att_titles = [t.strip().lower() for t in attachment_titles if t.strip()]
 
         for norm_excluded in self.excluded_titles:
-            # Vérification dans les titres des pièces jointes (attachments)
+            # Check in attachment titles
             for norm_title in norm_att_titles:
                 if norm_excluded in norm_title:
                     return True
 
-            # Vérification dans le corps du message (ex: "Titre : Batche(s) OK")
+            # Check in message body lines (e.g., "Title: Batche(s) OK")
             for line in message.splitlines():
                 norm_line = line.strip().lower()
-                if RE_TITRE_LINE.match(norm_line) and norm_excluded in norm_line:
+                if RE_TITLE_LINE.match(norm_line) and norm_excluded in norm_line:
                     return True
                 if norm_line.startswith(norm_excluded):
                     return True
@@ -108,14 +108,14 @@ class MattermostClient:
 
     def fetch_messages(self) -> list[dict[str, Any]]:
         """
-        Récupère TOUS les messages des dernières heures configurées pour le canal configuré en utilisant la pagination.
-        Prend en charge l'extraction des informations contenues dans les pièces jointes (props.attachments).
-        Retourne une liste de dictionnaires formatés avec la date et le message.
+        Retrieves ALL messages from the configured channel for the given time window using pagination.
+        Handles extracting metadata from attachment props (props.attachments).
+        Returns a list of formatted alert dictionaries.
         """
         if not self.channel_id:
-            raise RuntimeError("L'ID du canal Mattermost n'est pas configuré.")
+            raise RuntimeError("Mattermost channel ID is not configured.")
 
-        # Calculer le timestamp d'il y a self.hours heures en millisecondes
+        # Calculate timestamp for self.hours ago in milliseconds
         since_time = int((time.time() - self.hours * 3600) * 1000)
 
         url = f"{self.url}/api/v4/channels/{self.channel_id}/posts"
@@ -125,11 +125,11 @@ class MattermostClient:
         page = 0
         per_page = 100
 
-        logger.debug("[MATTERMOST] Récupération de tous les messages de Mattermost depuis %s", since_time)
+        logger.debug("[MATTERMOST] Fetching messages from Mattermost since timestamp %s", since_time)
 
         try:
             while True:
-                logger.debug("[MATTERMOST] Chargement des posts - Page %d (per_page=%d)", page, per_page)
+                logger.debug("[MATTERMOST] Loading posts - Page %d (per_page=%d)", page, per_page)
                 params = {
                     "page": page,
                     "per_page": per_page,
@@ -146,17 +146,17 @@ class MattermostClient:
                         err_msg = err_json.get("message", r.text)
                     except Exception:
                         err_msg = r.text
-                    raise RuntimeError(f"Erreur API Mattermost (HTTP {r.status_code}) : {err_msg}")
+                    raise RuntimeError(f"Mattermost API error (HTTP {r.status_code}): {err_msg}")
 
                 data = r.json()
                 posts = data.get("posts", {})
                 order = data.get("order", [])
 
                 if not order:
-                    logger.debug("[MATTERMOST] Aucun post supplémentaire trouvé à la page %d.", page)
+                    logger.debug("[MATTERMOST] No additional posts found on page %d.", page)
                     break
 
-                logger.debug("[MATTERMOST] Page %d : %d posts reçus", page, len(order))
+                logger.debug("[MATTERMOST] Page %d: %d posts received", page, len(order))
 
                 reached_end = False
                 for post_id in order:
@@ -173,11 +173,11 @@ class MattermostClient:
                         reached_end = True
 
                 if reached_end:
-                    logger.info("[MATTERMOST] Limite des %d dernières heures atteinte.", self.hours)
+                    logger.info("[MATTERMOST] Reached time limit for the last %d hours.", self.hours)
                     break
 
                 if len(order) < per_page:
-                    logger.debug("[MATTERMOST] Fin des messages atteinte (dernière page incomplète).")
+                    logger.debug("[MATTERMOST] Reached end of messages (incomplete last page).")
                     break
 
                 page += 1
@@ -191,7 +191,7 @@ class MattermostClient:
 
                 message_text = post.get("message", "").strip()
 
-                # Extraire les pièces jointes (attachments) dans les props du post
+                # Extract attachments from post props
                 props = post.get("props", {}) or {}
                 attachments = props.get("attachments", []) or []
 
@@ -202,7 +202,7 @@ class MattermostClient:
                     title = attachment.get("title", "").strip()
                     text = attachment.get("text", "").strip()
 
-                    # Extraction de la description spécifique de cet attachement
+                    # Extract specific description from this attachment
                     desc = attachment.get("description", "").strip() if attachment.get("description") else ""
                     if not desc:
                         fields = attachment.get("fields") or []
@@ -215,7 +215,7 @@ class MattermostClient:
                         if m_desc:
                             desc = m_desc.group(1).strip()
                     if not desc and text:
-                        # Limiter à la première ligne pour éviter des intitulés géants (ex: tracebacks)
+                        # Limit to first line to avoid oversized titles (e.g., stack traces)
                         first_line = text.strip().splitlines()[0].strip()
                         desc = first_line[:120]
 
@@ -229,11 +229,11 @@ class MattermostClient:
                     })
 
                     if title and text:
-                        attachment_parts.append(f"Titre : {title}\n{text}")
+                        attachment_parts.append(f"Title: {title}\n{text}")
                     elif text:
                         attachment_parts.append(text)
                     elif title:
-                        attachment_parts.append(f"Titre : {title}")
+                        attachment_parts.append(f"Title: {title}")
 
                 if attachment_parts:
                     attachments_text = "\n\n".join(attachment_parts)
@@ -242,18 +242,18 @@ class MattermostClient:
                     else:
                         message_text = attachments_text
 
-                # Ignorer les messages vides
+                # Skip empty messages
                 if not message_text.strip():
                     continue
 
-                # Filtrer les alertes exclues selon leurs titres
+                # Filter out excluded alerts based on titles
                 if self._is_excluded(message_text, attachment_titles):
                     matched_info = ", ".join(attachment_titles) if attachment_titles else message_text.splitlines()[0]
-                    logger.info("[MATTERMOST] Alerte ignorée (titre exclu) : %s", matched_info)
+                    logger.info("[MATTERMOST] Alert skipped (excluded title): %s", matched_info)
                     excluded_count += 1
                     continue
 
-                # Formatage de la date du post dans le fuseau configuré
+                # Format post timestamp in configured timezone
                 create_at = post.get("create_at", 0)
                 dt = datetime.fromtimestamp(create_at / 1000.0, tz=self.tz)
                 created_at_str = dt.strftime("%d/%m/%Y %H:%M:%S")
@@ -272,12 +272,12 @@ class MattermostClient:
 
             if excluded_count > 0:
                 logger.info(
-                    "[MATTERMOST] %d alerte(s) ignorée(s) selon les règles d'exclusion de titre.",
+                    "[MATTERMOST] %d alert(s) skipped according to title exclusion rules.",
                     excluded_count,
                 )
 
-            logger.info("[MATTERMOST] %d message(s) d'alerte extrait(s) des dernières %dh.", len(formatted_messages), self.hours)
+            logger.info("[MATTERMOST] %d alert message(s) retrieved for the last %dh.", len(formatted_messages), self.hours)
             return formatted_messages
 
         except requests.RequestException as e:
-            raise RuntimeError(f"Erreur réseau lors de la récupération des messages : {e}")
+            raise RuntimeError(f"Network error while fetching messages: {e}")

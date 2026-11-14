@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 class ConfluenceClient:
     """
-    Client de connexion et d'interaction avec l'API REST de Confluence Server / Data Center.
-    Gère la récupération et la mise à jour des pages en format de stockage XHTML.
+    Client for connecting to and interacting with the Confluence Server / Data Center REST API.
+    Handles retrieving and updating pages in XHTML storage format.
     """
 
     def __init__(
@@ -52,23 +52,23 @@ class ConfluenceClient:
         self.close()
 
     def close(self) -> None:
-        """Ferme la session HTTP sous-jacente."""
+        """Closes the underlying HTTP session."""
         self.session.close()
 
     def get_page(self, page_id: str | None = None) -> dict[str, Any]:
         """
-        Récupère les détails et le contenu d'une page Confluence (avec body.storage et version).
+        Retrieves details and content for a Confluence page (including body.storage, space, and version).
         """
         target_id = page_id or self.page_id
         if not target_id:
-            raise ValueError("Aucun identifiant de page Confluence fourni.")
+            raise ValueError("No Confluence page ID provided.")
 
         api_url = f"{self.url}/rest/api/content/{target_id}?expand=body.storage,version,space"
         response = self.session.get(api_url, headers=self.headers, timeout=self.timeout)
 
         if response.status_code != 200:
             logger.error(
-                "[CONFLUENCE] Échec lors de la récupération de la page %s (HTTP %s) : %s",
+                "[CONFLUENCE] Failed to retrieve page %s (HTTP %s): %s",
                 target_id,
                 response.status_code,
                 response.text[:200],
@@ -86,11 +86,11 @@ class ConfluenceClient:
         next_version: int,
     ) -> dict[str, Any]:
         """
-        Met à jour le contenu d'une page Confluence.
+        Updates the content of a Confluence page.
         """
         target_id = page_id or self.page_id
         if not target_id:
-            raise ValueError("Aucun identifiant de page Confluence fourni pour la mise à jour.")
+            raise ValueError("No Confluence page ID provided for update.")
 
         api_url = f"{self.url}/rest/api/content/{target_id}"
         payload = {
@@ -118,7 +118,7 @@ class ConfluenceClient:
 
         if response.status_code != 200:
             logger.error(
-                "[CONFLUENCE] Échec lors de la mise à jour de la page %s (HTTP %s) : %s",
+                "[CONFLUENCE] Failed to update page %s (HTTP %s): %s",
                 target_id,
                 response.status_code,
                 response.text[:300],
@@ -126,7 +126,7 @@ class ConfluenceClient:
             response.raise_for_status()
 
         logger.info(
-            "[CONFLUENCE] Page %s mise à jour avec succès (nouvelle version %s).",
+            "[CONFLUENCE] Page %s updated successfully (new version %s).",
             target_id,
             next_version,
         )
@@ -141,11 +141,11 @@ class ConfluenceClient:
         comment: str | None = None,
     ) -> dict[str, Any]:
         """
-        Attache un fichier (pièce jointe) à une page Confluence via l'API REST multipart/form-data.
+        Attaches a file to a Confluence page via the multipart/form-data REST API.
         """
         target_id = page_id or self.page_id
         if not target_id:
-            raise ValueError("Aucun identifiant de page Confluence fourni pour l'attachement.")
+            raise ValueError("No Confluence page ID provided for file attachment.")
 
         api_url = f"{self.url}/rest/api/content/{target_id}/child/attachment"
 
@@ -172,7 +172,7 @@ class ConfluenceClient:
 
         if response.status_code not in (200, 201):
             logger.error(
-                "[CONFLUENCE] Échec lors de l'attachement du fichier '%s' sur la page %s (HTTP %s) : %s",
+                "[CONFLUENCE] Failed to attach file '%s' to page %s (HTTP %s): %s",
                 filename,
                 target_id,
                 response.status_code,
@@ -181,7 +181,7 @@ class ConfluenceClient:
             response.raise_for_status()
 
         logger.info(
-            "[CONFLUENCE] Fichier '%s' attaché avec succès sur la page %s.",
+            "[CONFLUENCE] File '%s' attached successfully to page %s.",
             filename,
             target_id,
         )
@@ -189,7 +189,7 @@ class ConfluenceClient:
 
     def build_page_url(self, page_data: dict[str, Any] | None = None) -> str:
         """
-        Construit l'URL web directe vers la page Confluence.
+        Builds the direct web URL to a Confluence page.
         """
         if page_data:
             webui = page_data.get("_links", {}).get("webui", "")

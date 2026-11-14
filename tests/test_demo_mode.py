@@ -16,7 +16,7 @@ def test_generate_demo_alerts_fields_and_order() -> None:
     alerts = generate_demo_alerts(hours=168)
     assert len(alerts) > 0
 
-    # Vérification des champs requis
+    # Validate required fields
     for a in alerts:
         assert "id" in a
         assert "message" in a
@@ -25,7 +25,7 @@ def test_generate_demo_alerts_fields_and_order() -> None:
         assert "permalink" in a
         assert len(a["titles"]) >= 1
 
-    # Vérification du tri antichronologique
+    # Validate reverse chronological ordering
     timestamps = [a["timestamp"] for a in alerts]
     assert timestamps == sorted(timestamps, reverse=True)
 
@@ -44,22 +44,22 @@ def test_mock_confluence_client_workflow(tmp_path: Path) -> None:
 
     updated = client.update_page(
         page_id="123456789",
-        title="Nouveau titre",
+        title="New Title",
         space_key="ALERTS",
         storage_html="<p>Test</p>",
         next_version=2,
     )
-    assert updated["title"] == "Nouveau titre"
+    assert updated["title"] == "New Title"
     assert updated["version"]["number"] == 2
 
-    attachment = client.attach_file("123456781", "rapport.html", b"<html></html>")
-    assert attachment["title"] == "rapport.html"
+    attachment = client.attach_file("123456781", "report.html", b"<html></html>")
+    assert attachment["title"] == "report.html"
     assert len(client.attached_files) == 1
 
     url = client.build_page_url(page)
     assert "confluence_suivi.html" in url
 
-    # Test de l'export des pages HTML
+    # Test HTML export
     exported = client.export_html_pages(tmp_path)
     assert len(exported) == 3
     assert (tmp_path / "confluence_suivi.html").exists()
@@ -79,13 +79,12 @@ def test_main_demo_mode_full_execution(tmp_path: Path, monkeypatch: pytest.Monke
     assert exit_code == 0
     assert output_html.exists()
     content = output_html.read_text(encoding="utf-8")
-    assert "Rapport d'Alerting - Mattermost" in content
+    assert "Alerting Report" in content
     assert "api-gateway" in content
     assert "payment-service" in content
-    # Vérification de l'intégration Confluence simulée
     assert "confluence-kpi-item" in content
 
-    # Vérification que les 3 écrans Confluence simulés ont bien été exportés
+    # Verify that the 3 simulated Confluence views are exported
     suivi_html = tmp_path / "confluence_suivi.html"
     archive_html = tmp_path / "confluence_archive.html"
     stats_html = tmp_path / "confluence_stats.html"
@@ -95,21 +94,21 @@ def test_main_demo_mode_full_execution(tmp_path: Path, monkeypatch: pytest.Monke
     assert stats_html.exists()
 
     suivi_content = suivi_html.read_text(encoding="utf-8")
-    assert "Point de suivi hebdomadaire des alertes" in suivi_content
+    assert "Weekly Alert Tracking and Team Action Plan" in suivi_content
     assert "aui-lozenge" in suivi_content
 
     archive_content = archive_html.read_text(encoding="utf-8")
-    assert "Archive des décisions de suivi" in archive_content
+    assert "Resolved Alerts Archive" in archive_content
 
     stats_content = stats_html.read_text(encoding="utf-8")
-    assert "Statistiques d'évolution" in stats_content
+    assert "Weekly Alerting Evolution and Metrics" in stats_content
 
 
 def test_main_demo_mode_without_confluence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output_html = tmp_path / "test_demo_no_conf.html"
     monkeypatch.setattr(
         "sys.argv",
-        ["main.py", "--demo", "--suivi-confluence=false", "--output", str(output_html)],
+        ["main.py", "--demo", "--confluence-tracking=false", "--output", str(output_html)],
     )
 
     exit_code = main()
@@ -117,5 +116,5 @@ def test_main_demo_mode_without_confluence(tmp_path: Path, monkeypatch: pytest.M
     assert exit_code == 0
     assert output_html.exists()
     content = output_html.read_text(encoding="utf-8")
-    assert "Rapport d'Alerting - Mattermost" in content
+    assert "Alerting Report" in content
     assert "api-gateway" in content

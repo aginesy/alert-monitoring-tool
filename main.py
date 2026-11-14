@@ -4,18 +4,12 @@ import argparse
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-# Assurer la priorité des modules locaux au projet alerting
-ALERTING_ROOT = Path(__file__).resolve().parent
-if str(ALERTING_ROOT) not in sys.path:
-    sys.path.insert(0, str(ALERTING_ROOT))
-
-from dotenv import load_dotenv
-
-load_dotenv()
+# Ensure alerting project root directory is available in sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from utils.logger import setup_logging, print_alerting_summary
 from config import config, config_mattermost, config_confluence
@@ -31,38 +25,38 @@ logger = logging.getLogger(__name__)
 
 
 def positive_int(value: str) -> int:
-    """Valide que la valeur fournie est un entier strictement positif."""
+    """Validates that the provided value is a strictly positive integer."""
     try:
         ivalue = int(value)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"La valeur '{value}' n'est pas un nombre entier valide.")
+        raise argparse.ArgumentTypeError(f"Value '{value}' is not a valid integer.")
     if ivalue <= 0:
-        raise argparse.ArgumentTypeError(f"Le nombre d'heures doit être supérieur à 0 (reçu : {value}).")
+        raise argparse.ArgumentTypeError(f"Number of hours must be greater than 0 (received: {value}).")
     return ivalue
 
 
 def str_to_bool(value: str | bool) -> bool:
-    """Convertit une chaîne en booléen (gère 'true', 'false', '1', '0', etc.)."""
+    """Converts a string representation into a boolean (handles 'true', 'false', '1', '0', etc.)."""
     if isinstance(value, bool):
         return value
     val = value.strip().lower()
-    if val in ("true", "1", "yes", "y", "t", "vrai"):
+    if val in ("true", "1", "yes", "y", "t"):
         return True
-    if val in ("false", "0", "no", "n", "f", "faux"):
+    if val in ("false", "0", "no", "n", "f"):
         return False
     raise argparse.ArgumentTypeError(
-        f"Valeur booléenne invalide pour --suivi-confluence : '{value}'. "
-        "Valeurs acceptées : 'true', 'false', '1', '0', 'yes', 'no'."
+        f"Invalid boolean value for --confluence-tracking: '{value}'. "
+        "Accepted values: 'true', 'false', '1', '0', 'yes', 'no'."
     )
 
 
 def get_app_timezone() -> ZoneInfo | timezone:
-    """Récupère le fuseau horaire configuré avec repli sur UTC en cas d'erreur."""
+    """Retrieves configured timezone with fallback to UTC on error."""
     try:
         return ZoneInfo(config.TIMEZONE)
     except (ZoneInfoNotFoundError, Exception):
         logger.warning(
-            "[CONFIGURATION] Fuseau horaire '%s' indisponible ou invalide. Repli sur UTC.",
+            "[CONFIGURATION] Timezone '%s' unavailable or invalid. Falling back to UTC.",
             config.TIMEZONE,
         )
         return timezone.utc
@@ -70,7 +64,7 @@ def get_app_timezone() -> ZoneInfo | timezone:
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Génération du rapport d'alertes Mattermost sur une période donnée.",
+        description="Mattermost alerting report generation and Confluence review tracking over a time window.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -78,39 +72,45 @@ def parse_arguments() -> argparse.Namespace:
         "--hours",
         type=positive_int,
         default=config.DEFAULT_HOURS,
-        help="Nombre d'heures à analyser (entier strictement positif).",
+        help="Number of hours of history to analyze (strictly positive integer).",
     )
 
     parser.add_argument(
         "--output",
         type=str,
         default=None,
-        help="Chemin de sortie du fichier HTML généré.",
+        help="Custom output file path for the generated HTML report.",
     )
 
     parser.add_argument(
+        "--confluence-tracking",
         "--suivi-confluence",
+        dest="confluence_tracking",
         type=str_to_bool,
         nargs="?",
         const=True,
-        default=os.getenv("SUIVI_CONFLUENCE", "false").lower() in ("true", "1", "yes"),
+        default=(
+            os.getenv("CONFLUENCE_TRACKING") or os.getenv("SUIVI_CONFLUENCE", "false")
+        ).lower() in ("true", "1", "yes"),
         metavar="true|false",
-        help="Activer ou désactiver le mode de suivi des actions et la synchronisation avec Confluence.",
+        help="Enable or disable action tracking and synchronization with Confluence.",
     )
 
     parser.add_argument(
         "--demo",
         action="store_true",
-        help="Lancer le mode démonstration autonome avec des alertes et un Confluence simulés (aucun serveur externe requis).",
+        help="Run standalone demo mode with simulated alerts and Confluence pages (no external servers required).",
     )
 
     parser.add_argument(
         "--open",
         action="store_true",
-        help="Ouvrir automatiquement le rapport HTML dans le navigateur par défaut après génération.",
+        help="Automatically open the generated HTML report in the default web browser.",
     )
 
-    return parser.parse_args()
+    ns = parser.parse_args()
+    setattr(ns, "suivi_confluence", ns.confluence_tracking)
+    return ns
 
 
 def save_report(content: str, output_path: Path) -> None:
@@ -118,7 +118,7 @@ def save_report(content: str, output_path: Path) -> None:
     with open(output_path, "w", encoding="utf-8") as file:
         file.write(content)
 
-    logger.info("[SYSTÈME] Rapport sauvegardé avec succès dans : %s", output_path.resolve())
+    logger.info("[SYSTEM] Report successfully saved to: %s", output_path.resolve())
 
 
 def main() -> int:
@@ -129,7 +129,7 @@ def main() -> int:
 
     is_demo = bool(args.demo)
 
-    # En mode démo, calibrer par défaut sur 168h (7 jours) pour un scénario complet représentatif
+    # In demo mode, default to 168h (7 days) for a representative weekly view unless explicitly overridden
     if is_demo and not any(arg.startswith("--hours") for arg in sys.argv[1:]):
         hours = 168
     else:
@@ -138,14 +138,18 @@ def main() -> int:
     output_file = Path(args.output) if args.output else config.OUTPUT_FILE
     app_tz = get_app_timezone()
 
-    # En mode démo, activer le suivi Confluence par défaut sauf refus explicite
-    if is_demo and not any(arg.startswith("--suivi-confluence") for arg in sys.argv[1:]):
-        suivi_confluence = True
+    # In demo mode, enable Confluence tracking by default unless explicitly disabled
+    has_explicit_tracking_flag = any(
+        arg.startswith(("--confluence-tracking", "--suivi-confluence"))
+        for arg in sys.argv[1:]
+    )
+    if is_demo and not has_explicit_tracking_flag:
+        confluence_tracking = True
     else:
-        suivi_confluence = bool(args.suivi_confluence)
+        confluence_tracking = bool(args.confluence_tracking)
 
     channel_id = (
-        "canal-demo-alerting"
+        "demo-alerting-channel"
         if is_demo
         else (config_mattermost.mattermost_client_config.get("channel_id") or "")
     )
@@ -163,18 +167,18 @@ def main() -> int:
 
     if not is_demo and (not url or not token or not channel_id):
         logger.error(
-            "[CONFIGURATION] Variables Mattermost manquantes. Veuillez renseigner MATTERMOST_URL, "
-            "MATTERMOST_TOKEN et MATTERMOST_CHANNEL_ID dans le fichier .env (ou tester avec --demo)."
+            "[CONFIGURATION] Missing Mattermost environment variables. Please provide MATTERMOST_URL, "
+            "MATTERMOST_TOKEN and MATTERMOST_CHANNEL_ID in .env (or test using --demo)."
         )
         return 1
 
     try:
         if is_demo:
-            logger.info("[DÉMO] Mode démonstration autonome activé. Utilisation du client Mattermost simulé...")
+            logger.info("[DEMO] Standalone demo mode enabled. Using simulated Mattermost client...")
             with MockMattermostClient(hours=hours, tz=app_tz) as client:
                 alerts = client.fetch_messages()
         else:
-            logger.info("[MATTERMOST] Initialisation du client Mattermost...")
+            logger.info("[MATTERMOST] Initializing Mattermost client...")
             with MattermostClient(
                 url=url,
                 token=token,
@@ -184,16 +188,16 @@ def main() -> int:
                 team=team,
                 tz=app_tz,
             ) as client:
-                logger.info("[MATTERMOST] Récupération des alertes...")
+                logger.info("[MATTERMOST] Fetching alert messages...")
                 alerts = client.fetch_messages()
 
-        logger.info("[ANALYSE] Catégorisation et décompte des occurrences...")
+        logger.info("[ANALYSIS] Categorizing alerts and counting occurrences...")
         categories = AlertService.categorize_alerts(alerts, tz=app_tz)
 
-        # Date de génération du rapport (pour le rapport HTML et la synchronisation Confluence)
-        current_date_str = datetime.now(tz=app_tz).strftime("%d/%m/%Y à %H:%M:%S")
+        # Generation timestamp (used in HTML report and Confluence synchronization)
+        current_date_str = datetime.now(tz=app_tz).strftime("%d/%m/%Y at %H:%M:%S")
 
-        # Limitation du nombre d'alertes détaillées en fin de page pour optimiser la mémoire et le DOM
+        # Limit number of detailed alerts at the end of the report to keep DOM responsive
         max_detailed = config.MAX_DETAILED_ALERTS
         if max_detailed > 0 and len(alerts) > max_detailed:
             detailed_alerts = alerts[:max_detailed]
@@ -205,12 +209,12 @@ def main() -> int:
         renderer = TemplateRenderer()
 
         def build_rendered_report(conf_url: str | None, conf_stats: dict[str, int]) -> str:
-            is_suivi_active = bool(suivi_confluence)
-            if not is_suivi_active:
+            is_tracking_active = bool(confluence_tracking)
+            if not is_tracking_active:
                 for cat in categories:
                     cat.pop("tracking", None)
 
-            # Construction de la frise chronologique avec les catégories enrichies du suivi Confluence
+            # Build timeline chart data with Confluence-enriched categories
             timeline = AlertService.build_timeline_data(alerts, hours, categories=categories, tz=app_tz)
             context = {
                 "alerts": alerts,
@@ -223,18 +227,19 @@ def main() -> int:
                 "total_categories": len(categories),
                 "hours": hours,
                 "generation_date": current_date_str,
-                "confluence_page_url": conf_url if is_suivi_active else None,
-                "confluence_stats": conf_stats if is_suivi_active else {},
-                "suivi_confluence": is_suivi_active,
+                "confluence_page_url": conf_url if is_tracking_active else None,
+                "confluence_stats": conf_stats if is_tracking_active else {},
+                "suivi_confluence": is_tracking_active,
+                "confluence_tracking": is_tracking_active,
             }
             return renderer.render(config.TEMPLATE_FILE, context)
 
-        # Suivi Confluence (activé uniquement avec l'option --suivi-confluence ou par défaut en --demo)
+        # Confluence synchronization (active only with --confluence-tracking / --suivi-confluence or in --demo)
         confluence_page_url: str | None = None
         tracking_stats: dict[str, int] = {}
         demo_conf_client: MockConfluenceClient | None = None
 
-        if suivi_confluence:
+        if confluence_tracking:
             if is_demo:
                 conf_config = {
                     "url": "confluence_suivi.html",
@@ -262,38 +267,38 @@ def main() -> int:
                 render_html_callback=build_rendered_report,
             )
         else:
-            logger.info("[CONFLUENCE] Mode suivi Confluence non spécifié. Exécution standard.")
+            logger.info("[CONFLUENCE] Confluence tracking mode not specified. Standard execution.")
 
-        logger.info("[RENDU] Génération du rapport HTML...")
+        logger.info("[RENDERING] Generating HTML report...")
         rendered_html = build_rendered_report(confluence_page_url, tracking_stats)
         save_report(rendered_html, output_file)
 
-        # En mode démonstration avec suivi activé, générer les 3 écrans Confluence simulés
+        # In standalone demo mode with tracking, export the 3 simulated Confluence web screens
         if is_demo and demo_conf_client:
-            logger.info("[DÉMO] Génération des 3 pages web Confluence simulées...")
+            logger.info("[DEMO] Generating 3 simulated Confluence web views...")
             exported = demo_conf_client.export_html_pages(
                 output_dir=output_file.parent,
                 sync_date_str=current_date_str,
             )
             logger.info("========================================================")
-            logger.info("       🎉 DÉMONSTRATION COMPLÈTE PRÊTE EN LOCAL         ")
+            logger.info("       🎉 COMPLETE LOCAL DEMONSTRATION READY            ")
             logger.info("========================================================")
-            logger.info(" • Rapport d'alerting       : %s", output_file.resolve())
+            logger.info(" • Alerting Report           : %s", output_file.resolve())
             for key, path in exported.items():
-                logger.info(" • Écran Confluence (%-7s) : %s", key, path.resolve())
+                logger.info(" • Confluence Screen (%-7s): %s", key, path.resolve())
             logger.info("========================================================")
 
         if args.open:
             import webbrowser
             report_uri = output_file.resolve().as_uri()
-            logger.info("[SYSTÈME] Ouverture du rapport dans le navigateur : %s", report_uri)
+            logger.info("[SYSTEM] Opening report in default browser: %s", report_uri)
             webbrowser.open(report_uri)
 
     except Exception:
-        logger.exception("[SYSTÈME] Une erreur est survenue lors de la génération du rapport d'alerting.")
+        logger.exception("[SYSTEM] An error occurred while generating the alerting report.")
         return 1
 
-    logger.info("[SYSTÈME] Traitement terminé avec succès.")
+    logger.info("[SYSTEM] Processing completed successfully.")
     return 0
 
 

@@ -5,55 +5,55 @@ import re
 from datetime import datetime, timedelta, tzinfo
 from typing import Any
 
-# Expressions régulières pré-compilées
+# Pre-compiled regular expressions
 RE_HTML_TAGS = re.compile(r"<[^>]+>")
 RE_SEVERITY_STARS = re.compile(r"[\*`]")
 RE_STATUS_BRACKET = re.compile(r"\[\s*(FIRING(?::\d+)?|RESOLVED)", re.IGNORECASE)
 RE_STATUS_RESOLVED = re.compile(r"\bresolved\b", re.IGNORECASE)
 RE_STATUS_FIRING = re.compile(r"\bfiring\b", re.IGNORECASE)
-RE_DESC_FIELD = re.compile(r"\*\*Description\s*:\*\*\s*([^\n]+)")
-RE_ALERT_FIELD = re.compile(r"\*\*Alert\s*:\*\*\s*([^\n]+)")
+RE_DESC_FIELD = re.compile(r"\*\*Description\s*:\*\*\s*([^\n]+)", re.IGNORECASE)
+RE_ALERT_FIELD = re.compile(r"\*\*Alert\s*:\*\*\s*([^\n]+)", re.IGNORECASE)
 RE_SEVERITY_PREFIX = re.compile(r"^(?:CRITICAL|MAJOR|WARNING|INFO)\s*-\s*", re.IGNORECASE)
 
-JOURS_FR = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-JOURS_FR_COURTS = ["Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam.", "Dim."]
-MOIS_FR = [
-    "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-    "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+DAYS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+DAYS_EN_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+MONTHS_EN = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
 ]
 
 
 class AlertService:
     """
-    Service de traitement, catégorisation et agrégation des alertes.
-    La catégorie d'une alerte correspond à la description de chaque attachement d'alerte.
+    Service for processing, categorizing, and aggregating alerts.
+    An alert's category corresponds to the description extracted from each alert attachment.
     """
 
     @staticmethod
     def _clean_text(text: str) -> str:
         """
-        Nettoie le texte en retirant le balisage HTML, les entités HTML,
-        les marqueurs Markdown et les espaces superflus.
+        Cleans text by stripping HTML tags, decoding HTML entities,
+        removing Markdown bold markers, and trimming extra whitespace.
         """
         if not text:
             return ""
-        # Supprimer balises HTML
+        # Remove HTML tags
         clean = RE_HTML_TAGS.sub("", text)
-        # Décoder proprement toutes les entités HTML (&lt;, &gt;, &#39;, &amp;, etc.)
+        # Decode HTML entities (&lt;, &gt;, &#39;, &amp;, etc.)
         clean = html.unescape(clean)
-        # Supprimer le gras markdown sur les sévérités
+        # Remove markdown stars/ticks from severity labels
         clean = RE_SEVERITY_STARS.sub("", clean)
         return clean.strip()
 
     @staticmethod
     def extract_status(message: str, titles: list[str] | None = None) -> str:
         """
-        Détermine le statut de l'alerte (RESOLVED, FIRING:N, etc.).
+        Extracts the alert status (RESOLVED, FIRING:N, etc.).
         """
         if not message and not titles:
             return "INFO"
 
-        # 1. Chercher prioritairement dans les titres d'attachements
+        # 1. Search attachment titles with highest priority
         candidates = list(titles) if titles else []
         candidates.extend(message.splitlines())
 
@@ -62,7 +62,7 @@ class AlertService:
             if m:
                 return m.group(1).upper()
 
-        # 2. Recherche avec délimiteurs de mots dans le message complet
+        # 2. Word boundary search across full message
         if RE_STATUS_RESOLVED.search(message):
             return "RESOLVED"
         if RE_STATUS_FIRING.search(message):
@@ -73,12 +73,12 @@ class AlertService:
     @classmethod
     def extract_descriptions(cls, alert: dict[str, Any]) -> list[str]:
         """
-        Extrait la liste des descriptions d'attachements pour une alerte donnée.
-        Chaque description constitue une catégorie d'alerte.
+        Extracts the list of attachment descriptions for a given alert.
+        Each description serves as an alert category.
         """
         descriptions: list[str] = []
 
-        # 1. Depuis la liste d'attachements structurée si disponible
+        # 1. Extract from structured attachments list if available
         attachments = alert.get("attachments") or []
         for att in attachments:
             desc = att.get("description", "").strip()
@@ -87,7 +87,7 @@ class AlertService:
                 if cleaned and cleaned not in descriptions:
                     descriptions.append(cleaned)
 
-        # 2. Si aucune description trouvée, parser le corps du message
+        # 2. If no attachment description found, parse message body
         if not descriptions:
             msg = alert.get("message", "")
             matches = RE_DESC_FIELD.findall(msg)
@@ -96,24 +96,24 @@ class AlertService:
                 if cleaned and cleaned not in descriptions:
                     descriptions.append(cleaned)
 
-        # 3. Si toujours aucune description, chercher après **Alert :**
+        # 3. If still no description, look for **Alert :** pattern
         if not descriptions:
             alert_match = RE_ALERT_FIELD.search(alert.get("message", ""))
             if alert_match:
                 cleaned = cls._clean_text(alert_match.group(1))
-                # Nettoyer préfixe de sévérité éventuel
+                # Remove optional severity prefix
                 cleaned = RE_SEVERITY_PREFIX.sub("", cleaned).strip()
                 if cleaned:
                     descriptions.append(cleaned)
 
-        # 4. Fallback ultime : première ligne du message ou intitulé générique
+        # 4. Ultimate fallback: first line of message or generic title
         if not descriptions:
             raw_msg = alert.get("message", "").strip()
             first_line = raw_msg.splitlines()[0] if raw_msg else ""
             if first_line:
                 descriptions.append(cls._clean_text(first_line)[:80])
             else:
-                descriptions.append("Alerte sans description")
+                descriptions.append("Alert without description")
 
         return descriptions
 
@@ -124,10 +124,10 @@ class AlertService:
         tz: tzinfo | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Regroupe les alertes par catégorie (où la catégorie correspond à la description
-        de chaque attachement d'alerte), calcule le nombre d'occurrences sur la plage sélectionnée
-        et liste chaque occurrence horodatée.
-        Optimisé avec un cache de formatage de dates.
+        Groups alerts by category (where category = description of each attachment),
+        computes the number of occurrences over the selected time window,
+        and provides timestamps for each occurrence.
+        Optimized with date formatting caches.
         """
         groups: dict[str, list[dict[str, Any]]] = {}
 
@@ -142,14 +142,14 @@ class AlertService:
             descriptions = cls.extract_descriptions(alert)
             permalink = alert.get("permalink", "")
 
-            # Enrichir l'alerte pour affichage dans la vue détaillée
+            # Enrich alert object for detailed view rendering
             alert["index"] = index
             alert["status"] = status
             alert["category"] = descriptions[0] if descriptions else ""
             alert["categories"] = descriptions
             alert["permalink"] = permalink
 
-            # Chaque description d'attachement compte comme une occurrence pour sa catégorie
+            # Each attachment description counts as an occurrence for that category
             for desc in descriptions:
                 occurrence = {
                     "index": index,
@@ -164,7 +164,7 @@ class AlertService:
 
         categories_summary = []
 
-        # Caches de formattage pour éviter des dizaines de milliers d'appels strftime
+        # Date formatting caches to avoid tens of thousands of strftime calls
         day_cache: dict[tuple[int, int, int], tuple[str, str]] = {}
         month_cache: dict[tuple[int, int], tuple[str, str]] = {}
 
@@ -175,7 +175,7 @@ class AlertService:
                 reverse=True,
             )
 
-            # Regroupement des alertes par mois et par jour au sein de la catégorie
+            # Group occurrences by month and day within this category
             month_groups: dict[str, dict[str, Any]] = {}
 
             for occ in sorted_occurrences:
@@ -186,7 +186,7 @@ class AlertService:
                     if m_tuple not in month_cache:
                         month_cache[m_tuple] = (
                             f"{dt.year:04d}-{dt.month:02d}",
-                            f"{MOIS_FR[dt.month - 1]} {dt.year}",
+                            f"{MONTHS_EN[dt.month - 1]} {dt.year}",
                         )
                     month_key, month_label = month_cache[m_tuple]
 
@@ -194,7 +194,7 @@ class AlertService:
                     if d_tuple not in day_cache:
                         day_cache[d_tuple] = (
                             f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}",
-                            f"{JOURS_FR[dt.weekday()]} {dt.day:02d}/{dt.month:02d}/{dt.year:04d}",
+                            f"{DAYS_EN[dt.weekday()]} {dt.day:02d}/{dt.month:02d}/{dt.year:04d}",
                         )
                     date_key, date_label = day_cache[d_tuple]
                     time_str = f"{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
@@ -203,22 +203,22 @@ class AlertService:
                     try:
                         dt = datetime.strptime(created_at, "%d/%m/%Y %H:%M:%S")
                         month_key = f"{dt.year:04d}-{dt.month:02d}"
-                        month_label = f"{MOIS_FR[dt.month - 1]} {dt.year}"
+                        month_label = f"{MONTHS_EN[dt.month - 1]} {dt.year}"
                         date_key = f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}"
-                        date_label = f"{JOURS_FR[dt.weekday()]} {dt.day:02d}/{dt.month:02d}/{dt.year:04d}"
+                        date_label = f"{DAYS_EN[dt.weekday()]} {dt.day:02d}/{dt.month:02d}/{dt.year:04d}"
                         time_str = f"{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
                     except Exception:
                         month_key = "0000-00"
-                        month_label = "Mois inconnu"
+                        month_label = "Unknown Month"
                         date_key = "0000-00-00"
-                        date_label = "Date inconnue"
+                        date_label = "Unknown Date"
                         time_str = created_at
 
                 occ["time"] = time_str
                 occ["date_label"] = date_label
                 occ["month_label"] = month_label
 
-                # Regroupement hiérarchique au niveau mois -> jours
+                # Hierarchical grouping: month -> days
                 if month_key not in month_groups:
                     month_groups[month_key] = {
                         "month_key": month_key,
@@ -263,7 +263,7 @@ class AlertService:
                 "latest_occurrence_at": sorted_occurrences[0].get("created_at", "") if sorted_occurrences else "",
             })
 
-        # Tri des catégories par nombre d'occurrences décroissant, puis date la plus récente
+        # Sort categories by occurrence count descending, then by latest timestamp descending
         categories_summary.sort(
             key=lambda c: (c["count"], c["latest_timestamp"]),
             reverse=True,
@@ -280,13 +280,13 @@ class AlertService:
         tz: tzinfo | None = None,
     ) -> dict[str, Any]:
         """
-        Construit le modèle de données de la frise chronologique :
-        - Détermine la fenêtre temporelle [t_start, t_end].
-        - Calcule les graduations temporelles régulières (ticks) le long de l'axe X.
-        - Positionne chaque alerte proportionnellement en pourcentage (0% à 100%).
-        - Organise les alertes en couloirs horizontaux (lanes) par catégorie d'alerte.
-        - Intègre le détail par mois, jour et occurrences pour le dépliage interactif.
-        - Calcule le découpage journalier et les démarcations de minuit avec prise en compte du fuseau horaire.
+        Builds the data model for the interactive timeline chart:
+        - Determines the time window [t_start, t_end].
+        - Computes regular time graduations (ticks) along the X axis.
+        - Positions each alert proportionally as a percentage (0% to 100%).
+        - Organizes alerts into horizontal lanes per category.
+        - Integrates drill-down hierarchy (months, days, occurrences).
+        - Computes daily partitions and midnight boundaries adjusted to timezone.
         """
         empty_result = {
             "has_data": False,
@@ -311,7 +311,7 @@ class AlertService:
         min_ts = min(timestamps)
         max_ts = max(timestamps)
 
-        # Si l'écart est inférieur à 15 minutes, élargir la plage pour une visibilité confortable
+        # If span is under 15 minutes, add padding for comfortable visibility
         if max_ts - min_ts < 15 * 60 * 1000:
             t_start = min_ts - 30 * 60 * 1000
             t_end = max_ts + 30 * 60 * 1000
@@ -322,7 +322,7 @@ class AlertService:
 
         total_span = max(t_end - t_start, 1)
 
-        # Générer 6 graduations temporelles régulières le long de l'axe X
+        # Generate 6 regular time graduations along the X axis
         num_ticks = 6
         ticks = []
         for i in range(num_ticks):
@@ -336,7 +336,7 @@ class AlertService:
                 "date": dt.strftime("%d/%m"),
             })
 
-        # Regrouper les alertes en couloirs par catégorie (en plaçant l'alerte dans chaque catégorie liée)
+        # Group alerts into lanes by category
         groups: dict[str, list[dict[str, Any]]] = {}
         for a in alerts:
             ts = a.get("timestamp", 0)
@@ -362,17 +362,17 @@ class AlertService:
                 "permalink": a.get("permalink", ""),
             }
 
-            cats = a.get("categories") or [a.get("category", "Autres alertes")]
+            cats = a.get("categories") or [a.get("category", "Other alerts")]
             for cat_name in cats:
-                cat_key = cat_name if cat_name else "Autres alertes"
+                cat_key = cat_name if cat_name else "Other alerts"
                 groups.setdefault(cat_key, []).append(point)
 
-        # Associer les données détaillées par catégorie
+        # Associate detailed category data
         if categories is None:
             categories = cls.categorize_alerts(alerts, tz=tz)
         cat_map = {c["name"]: c for c in categories}
 
-        # Trier les couloirs par volume d'alertes décroissant
+        # Sort lanes by alert count descending
         lanes = []
         for cat_name, points in sorted(groups.items(), key=lambda x: len(x[1]), reverse=True):
             points_sorted = sorted(points, key=lambda p: p["timestamp"])
@@ -412,8 +412,8 @@ class AlertService:
                 end_pct = (effective_end_ts - t_start) / total_span * 100.0
                 width_pct = max(0.0, end_pct - start_pct)
 
-                day_name = JOURS_FR_COURTS[current_date.weekday()]
-                full_name = JOURS_FR[current_date.weekday()]
+                day_name = DAYS_EN_SHORT[current_date.weekday()]
+                full_name = DAYS_EN[current_date.weekday()]
                 d_str = current_date.strftime("%d/%m")
 
                 timeline_days.append({
@@ -439,12 +439,12 @@ class AlertService:
 
             current_date += timedelta(days=1)
 
-        # Découpage supérieur en mois ou semaines si la plage temporelle est étendue
+        # Higher level grouping by months or weeks for extended time windows
         periods = []
         period_title = ""
 
-        if duration_hours > 24 * 21:  # Plus de 3 semaines -> Regroupement par mois
-            period_title = "🗓️ Mois"
+        if duration_hours > 24 * 21:  # Over 3 weeks -> Group by month
+            period_title = "🗓️ Months"
             m_curr = dt_start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             while m_curr <= dt_end:
                 m_start_ts = m_curr.timestamp() * 1000.0
@@ -461,14 +461,14 @@ class AlertService:
                     start_pct = (eff_start - t_start) / total_span * 100.0
                     end_pct = (eff_end - t_start) / total_span * 100.0
                     periods.append({
-                        "label": f"🗓️ {MOIS_FR[m_curr.month - 1]} {m_curr.year}",
+                        "label": f"🗓️ {MONTHS_EN[m_curr.month - 1]} {m_curr.year}",
                         "start_pct": round(start_pct, 2),
                         "width_pct": round(max(0.0, end_pct - start_pct), 2),
                     })
                 m_curr = m_next
 
-        elif duration_hours > 24 * 5:  # Entre 5 jours et 3 semaines -> Regroupement par semaine
-            period_title = "📅 Semaines"
+        elif duration_hours > 24 * 5:  # Between 5 days and 3 weeks -> Group by week
+            period_title = "📅 Weeks"
             w_curr = dt_start - timedelta(days=dt_start.weekday())
             w_curr = w_curr.replace(hour=0, minute=0, second=0, microsecond=0)
             while w_curr <= dt_end:
@@ -485,7 +485,7 @@ class AlertService:
                     w_num = w_curr.isocalendar()[1]
                     w_end_day = w_next - timedelta(days=1)
                     periods.append({
-                        "label": f"Semaine {w_num} ({w_curr.strftime('%d/%m')} - {w_end_day.strftime('%d/%m')})",
+                        "label": f"Week {w_num} ({w_curr.strftime('%d/%m')} - {w_end_day.strftime('%d/%m')})",
                         "start_pct": round(start_pct, 2),
                         "width_pct": round(max(0.0, end_pct - start_pct), 2),
                     })

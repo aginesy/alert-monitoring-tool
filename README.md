@@ -1,129 +1,75 @@
-# Projet Alerting - Mattermost & Suivi Confluence
+# 🚨 Mattermost Alerting & Confluence Action Tracking
 
-Ce projet permet de collecter les alertes et messages Mattermost postés sur un canal spécifique sur une période donnée (en nombre d'heures), de synchroniser un registre d'actions sur **Confluence** pour le point de suivi, et de générer un rapport synthétique au format HTML comprenant :
-- Un **suivi des actions par catégorie d'alerte** synchronisé avec Confluence (statuts, actions décidées en réunion, porteur).
-- Une **synthèse par catégorie d'alerte** indiquant le nombre d'occurrences sur la plage sélectionnée et l'évolution globale.
-- Une **frise chronologique continue** et dépliable par catégorie d'alerte.
-- Le **détail chronologique complet** de l'ensemble des alertes collectées.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Code Style](https://img.shields.io/badge/code%20style-pep8-orange.svg)](https://pep8.org/)
 
----
-
-## 📋 Suivi d'actions sur Confluence (Point de suivi)
-
-Le projet intègre un registre de suivi interactif stocké sur une page Confluence dédiée :
-- **Consignation des décisions** : Lors du point de suivi, l'équipe renseigne directement sur la page Confluence les colonnes *Statut*, *Porteur*, *Échéance* et *Actions décidées*.
-- **Colonnes du tableau Confluence** :
-  1. **Statut** (`NOUVELLE`, `PTPNEL`, `EN COURS`, `RÉSOLUE`, `RÉCURRENTE`, `BRUIT`)
-  2. **Catégorie d'alerte** (avec ancre de navigation)
-  3. **Occurrences** (nombre de la semaine)
-  4. **Date de la dernière apparition de l'alerte dans Mattermost** (pastille date native Confluence + heure)
-  5. **Porteur** (responsable de l'action)
-  6. **Échéance** (date cible de résolution, renseignée au besoin)
-  7. **Actions décidées (Point de suivi)** (décisions et historique d'équipe)
-- **To-Do Point de Suivi** : Un encart synthétique placé directement au-dessus de la palette rappelle les 4 actions réflexes à mener en réunion hebdomadaire (Récurrentes ➔ Nouvelles ➔ Arbitrage PTPNEL ➔ Clôture En cours).
-- **Palette de statuts rapide** : Un encart en tête de page permet de copier/coller en un clic (`Ctrl+C` / `Ctrl+V`) les pastilles de couleur officielles (`EN COURS`, `RÉSOLUE`, `NOUVELLE`, `PTPNEL`, `RÉCURRENTE`, `BRUIT`) sans aucune saisie texte.
-- **Tableau dédié aux alertes de bruit** : Situé directement sous le tableau principal, ce second tableau regroupe et isole les alertes dont le statut a été positionné manuellement sur `BRUIT` (anomalies récurrentes connues qu'on ne peut pas désactiver, comme une épine dans le pied), évitant de polluer le tableau de suivi nominal.
-- **Réconciliation automatique** : À chaque nouveau rapport (le lundi suivant), le script relit la page Confluence, préserve fidèlement les actions, porteurs et échéances déjà saisis, et enrichit le tableau avec les nouvelles occurrences.
-- **Normalisation intelligente** : Évite les doublons de catégories causés par les métriques variables (ex : `(current : 91)`) ou les identifiants éphémères de pods Kubernetes (ex : suffixes de réplicas `-8578c8c7ff-wld7g`).
+An automated production alerting pipeline designed to extract, deduplicate, categorize, and visualize Mattermost monitoring alerts while maintaining a bidirectional, persistent action item tracking registry on Atlassian Confluence Server / Data Center.
 
 ---
 
-### 🔄 Cycle de vie et Workflows des alertes
+## ✨ Key Features
 
-```text
-             ┌─────────────────── Détection initiale (Semaine S) ───────────────────┐
-             │                                                                      │
-             ▼                                                                      ▼
-    [ 🔹 NOUVELLE ]                                                       [ 🔺 RÉCURRENTE ]
-             │                                                                      ▲
-   ┌─────────┴───────────────────────┐                                              │
-   │ Aucune action prise             │ Action définie / Porteur                     │
-   ▼                                 ▼                                              │
-[ ⚪ PTPNEL ] ────────────► [ 🔸 EN COURS ] ──(Fix validé)──► [ ✅ RÉSOLUE ]        │
-   │                                 │                              │               │
-   │  Au bout de 4 sem.              │ (Positionné manuellement)    │ > 1 mois      │
-   ├─► ⚠️ Avertissement (J-X)        ▼                              ▼               │
-   │                           [ 🟤 BRUIT ] (Tableau dédié)   [ 📦 ARCHIVE ] ───────┘
-   │  Plus de 1 mois                                                (Rechute si retour)
-   ▼
-[ 🗑️ Purge définitive ]
-```
-
-| Statut | Rôle | Action de l'équipe en réunion |
-| :--- | :--- | :--- |
-| 🔹 **`NOUVELLE`** | Alerte identifiée pour la 1ère fois cette semaine | Qualifier l'anomalie, désigner un porteur et définir l'action ➔ passer en **`EN COURS`**. |
-| ⚪ **`PTPNEL`** | Pas traitée, pas nouvelle, encore là | Traiter en réunion : définir l'action et le porteur ➔ passer en **`EN COURS`**. *Au bout de 4 semaines sans prise en charge, un avertissement avec décompte s'affiche sous le statut. Au-delà de 1 mois sans changement de statut, la ligne est automatiquement purgée du tableau Confluence.* |
-| 🔸 **`EN COURS`** | Plan d'action en cours d'exécution | Suivre l'avancement. Si le correctif est déployé/validé ➔ passer en **`RÉSOLUE`**. |
-| ✅ **`RÉSOLUE`** | Problème corrigé et validé | Aucune action requise. Déplacée dans la page d'archive après 1 mois sans réapparition. |
-| 🔺 **`RÉCURRENTE`** | **Rechute automatique !** | Analyser la régression en priorité, définir un correctif ➔ repasser en **`EN COURS`**. |
-| 🟤 **`BRUIT`** | Alerte connue incompressible (épine dans le pied) | Positionné manuellement dans Confluence (pastille marron). Déplacée automatiquement par le script dans le tableau des alertes de bruit sous le tableau principal. |
-
-#### Les 5 Workflows types :
-1. **Cycle nominal (Nouveau problème)** :
-   `NOUVELLE` (détection script) ➔ Saisie action & porteur ➔ `EN COURS` ➔ Déploiement correctif ➔ `RÉSOLUE`.
-2. **Cycle de régression (Rechute post-résolution)** :
-   `RÉSOLUE` ➔ Nouvelles alertes collectées ➔ **Bascule automatique en `RÉCURRENTE` par le script** ➔ Réanalyse en réunion ➔ `EN COURS`.
-3. **Cycle d'observation (0 alerte sur la semaine écoulée)** :
-   Si une alerte `EN COURS` n'a eu aucune occurrence (`0 cette semaine`), sa fiche est **intégralement conservée**. L'équipe décide de la passer en `RÉSOLUE` si le fix est validé, ou de la laisser en `EN COURS` pour observation.
-4. **Alertes de bruit incompressible** :
-   Positionnement manuel sur `BRUIT` ➔ Le script place l'alerte dans le tableau secondaire dédié sous le tableau principal.
-5. **Fausse alerte ou anomalie sans suite** :
-   Passage direct en `RÉSOLUE` avec mention du motif dans la colonne actions (*Faux positif - seuil ajusté* ou *Maintenance planifiée*).
+- **⏱️ Interactive Chronological Timeline**:
+  - Continuous linear visualization of alert triggers (`FIRING`) and resolutions (`RESOLVED`).
+  - Proportional positioning on an adaptive time axis with day markers, midnight separators, and weekly/monthly grouping.
+  - Drill-down per category into months, days, and individual occurrences with direct links to Mattermost posts.
+- **🧠 Smart Categorization & Normalization**:
+  - Automatically strips ephemeral Kubernetes pod replica hashes (e.g., `-8578c8c7ff-wld7g`) and dynamic metric values (e.g., `(current : 91)`) to avoid category fragmentation.
+  - Automatically ignores configurable status batches (e.g., `Batche(s) OK/KO`).
+- **🔄 Bidirectional Confluence Action Tracking (6-State Lifecycle Machine)**:
+  - **🔹 `NEW`**: First detection. Prompts root-cause investigation and team triage.
+  - **⚪ `UNATTENDED`**: Unassigned alert awaiting triage. *Automatic countdown warning at 4 weeks, automatic purge after 1 month.*
+  - **🔸 `IN PROGRESS`**: Action item assigned to an owner with target due date.
+  - **🔺 `RECURRING`**: Automatically triggered if a previously resolved or archived alert fires again.
+  - **✅ `RESOLVED`**: Team fix deployed and verified. *Automatically archived after 1 month.*
+  - **🟤 `NOISE`**: Known incompressible noise, automatically isolated in a dedicated secondary table.
+- **📦 Multi-Page Confluence Ecosystem**:
+  - **Active Board**: Primary review register with status palette, quick copy/paste helpers, and cross-navigation.
+  - **Archive Board**: Clean 6-column historical record of resolved alerts (> 1 month).
+  - **Weekly Statistics**: Automated weekly metrics log with the visual HTML report attached via REST API.
+- **🌟 Standalone Zero-Dependency Demo Mode (`--demo`, `--open`)**:
+  - Instantly test and showcase the full workflow in under **0.5 seconds** without needing Mattermost, Confluence, or Docker.
+  - Generates 4 interconnected local HTML deliverables including authentic Confluence web views with interactive anchor highlighting.
+- **🛡️ Resilient & Secure**:
+  - Built-in connection pooling and exponential backoff retry strategy (`urllib3.util.retry.Retry`).
+  - Strict HTML sanitization via `BeautifulSoup` preventing XSS injection from Confluence tables.
+  - Non-blocking design: continues generating local reports even if Confluence is temporarily unreachable.
 
 ---
 
-### 🌐 Architecture des 3 Pages Confluence Interconnectées
-
-Le dispositif s'articule autour de 3 pages Confluence complémentaires et interconnectées :
-
-| Page Confluence | Rôle principal | Variable d'environnement | Identifiant par défaut |
-| :--- | :--- | :--- | :--- |
-| **1. Page Principale (Point de suivi)** | Tableau actif de qualification des alertes, tableau secondaire des alertes de bruit, consignes, palette et indicateurs. | `CONFLUENCE_PAGE_ID` | `123456789` |
-| **2. Page d'Archive (Résolues > 1 mois)** | Historique pérenne des décisions sur les alertes résolues de longue date (6 colonnes sans statut). | `CONFLUENCE_ARCHIVE_PAGE_ID` | `123456780` |
-| **3. Page de Statistiques (Évolution)** | Journal de bord hebdomadaire consignant l'évolution des métriques semaine par semaine (12 colonnes dont PTPNEL supprimées &gt; 1 mois et rapport HTML en PJ). | `CONFLUENCE_STATS_PAGE_ID` | `123456781` |
-
-- **Navigation croisée automatique** :
-  - La page principale propose des liens directs vers l'archive, les statistiques et le rapport visuel GitLab.
-  - La page d'archive et la page de statistiques disposent d'un lien de retour immédiat vers le tableau de bord actif.
-- **Automatisme du cycle de vie** :
-  - **Archivage pérenne** : Les alertes `RÉSOLUE` depuis plus de 1 mois sans réapparition sont déplacées sur la page d'archive (et reviennent en `RÉCURRENTE` sur la page active si l'anomalie se reproduit).
-  - **Avertissement et purge PTPNEL** : Les alertes `PTPNEL` sans prise en charge affichent un avertissement à 4 semaines avec compte à rebours, et sont supprimées du tableau actif après 1 mois.
-  - **Isolation du Bruit** : Les alertes au statut `BRUIT` sont automatiquement regroupées dans le tableau secondaire situé sous le tableau principal.
-
----
-
-## 📁 Arborescence du projet
+## 📁 Project Structure
 
 ```text
 alerting/
-├── .gitlab-ci.yml              # Pipeline GitLab CI/CD (automatisation hebdomadaire)
-├── main.py                     # Point d'entrée de l'application
-├── requirements.txt            # Dépendances requises (requests, Jinja2, python-dotenv, beautifulsoup4)
-├── .env.example                # Exemple de configuration d'environnement
-├── README.md                   # Documentation du projet
+├── .gitlab-ci.yml              # GitLab CI/CD pipeline configuration (weekly automation)
+├── main.py                     # Application CLI entrypoint
+├── requirements.txt            # Required dependencies (requests, Jinja2, python-dotenv, beautifulsoup4)
+├── .env.example                # Example environment configuration template
+├── README.md                   # Project documentation
 ├── config/
-│   ├── config.py               # Chemins des templates, valeurs par défaut et fichiers de sortie
-│   ├── config_mattermost.py    # Chargement des identifiants et configuration Mattermost
-│   └── config_confluence.py    # Chargement des identifiants et configuration Confluence
+│   ├── config.py               # Paths, defaults, timezone, and artifact link resolution
+│   ├── config_mattermost.py    # Mattermost credentials loader
+│   └── config_confluence.py    # Confluence credentials and page IDs loader
 ├── clients/
-│   ├── mattermost_client.py    # Client de connexion à l'API Mattermost
-│   └── confluence_client.py    # Client REST Confluence Server / Data Center
+│   ├── mattermost_client.py    # Mattermost v4 REST API client with pagination
+│   └── confluence_client.py    # Confluence Server / Data Center REST client (XHTML storage)
 ├── services/
-│   ├── alert_service.py        # Catégorisation, décompte et graphe temporel des alertes
-│   ├── tracking_service.py     # Réconciliation, normalisation, machine à états et rendu Confluence
-│   ├── demo_service.py         # Mocks Mattermost/Confluence et exportateur web pour le mode démo
-│   └── template_renderer.py    # Moteur de rendu Jinja2
+│   ├── alert_service.py        # Normalization, categorization, and timeline chart data model
+│   ├── tracking_service.py     # Reconciliation, Confluence XHTML storage parser/generator, state machine
+│   ├── demo_service.py         # In-memory Mattermost/Confluence mocks and web view exporter for demo mode
+│   └── template_renderer.py    # Jinja2 template rendering engine with caching and autoescape
 ├── templates/
-│   └── alerting_template.html  # Modèle HTML du rapport avec badges Confluence et liens d'action
+│   └── alerting_template.html  # Standalone responsive HTML report template
 ├── tests/
-│   ├── test_alert_service.py       # Tests unitaires de catégorisation et de timeline
-│   ├── test_confluence_client.py   # Tests unitaires du client Confluence
-│   ├── test_demo_mode.py           # Tests unitaires du mode démo et de l'export des écrans Confluence
-│   ├── test_main_args.py           # Tests unitaires des arguments CLI et variables d'environnement
-│   └── test_tracking_service.py    # Tests unitaires de normalisation et réconciliation
+│   ├── test_alert_service.py       # Unit tests for categorization and timeline model
+│   ├── test_confluence_client.py   # Unit tests for Confluence REST API client
+│   ├── test_demo_mode.py           # Unit tests for standalone demo mode and Confluence export
+│   ├── test_main_args.py           # Unit tests for CLI arguments and environment variables
+│   └── test_tracking_service.py    # Unit tests for normalization, reconciliation, and lifecycle
 ├── utils/
-│   └── logger.py               # Logger console avec coloration ANSI
-└── output/                     # Répertoire où est sauvegardé le rapport généré
+│   └── logger.py               # ANSI color console logger and initialization banner
+└── output/                     # Generated reports directory (.gitkeep preserved)
     └── alertes.html
 ```
 
@@ -131,20 +77,20 @@ alerting/
 
 ## ⚙️ Installation
 
-1. Accédez au répertoire du projet :
+1. Navigate to the project directory:
    ```bash
    cd alerting
    ```
 
-2. Créez et activez un environnement virtuel (optionnel mais conseillé) :
+2. Create and activate a virtual environment:
    ```bash
    python -m venv venv
-   source venv/bin/activate  # Sur Linux/macOS
-   # ou
-   .\venv\Scripts\activate   # Sur Windows
+   source venv/bin/activate  # On Linux/macOS
+   # or on Windows:
+   .\venv\Scripts\activate
    ```
 
-3. Installez les dépendances :
+3. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
@@ -153,107 +99,99 @@ alerting/
 
 ## 🔑 Configuration
 
-Créez un fichier `.env` à la racine du projet `alerting` (ou copiez `.env.example`) :
+Create a `.env` file at the root of `alerting/` (or copy `.env.example`):
 
 ```env
-# Mattermost
-MATTERMOST_URL=https://mattermost.votredomaine.com
-MATTERMOST_TOKEN=votre_token_personnel_ou_bot
-MATTERMOST_CHANNEL_ID=id_du_canal_a_surveiller
-MATTERMOST_TEAM=nom_equipe
+# Mattermost Configuration
+MATTERMOST_URL=https://mattermost.yourdomain.com
+MATTERMOST_TOKEN=your_bot_or_user_token
+MATTERMOST_CHANNEL_ID=your_channel_id
+MATTERMOST_TEAM=your_team
 
-# Confluence (Suivi d'actions)
-CONFLUENCE_URL=https://confluence.votredomaine.com
-CONFLUENCE_TOKEN=votre_token_personnel_confluence
+# General Options
+EXCLUDED_ALERT_TITLES=Batche(s)
+APP_TIMEZONE=Europe/Paris
+MAX_DETAILED_ALERTS=200
+
+# Confluence Review Tracking (Optional)
+CONFLUENCE_URL=https://confluence.yourdomain.com
+CONFLUENCE_TOKEN=your_personal_access_token
 CONFLUENCE_PAGE_ID=123456789
 CONFLUENCE_ARCHIVE_PAGE_ID=123456780
 CONFLUENCE_STATS_PAGE_ID=123456781
 CONFLUENCE_DISABLED=false
-SUIVI_CONFLUENCE=false
-
-# Options générales
-EXCLUDED_ALERT_TITLES=Batche(s)
-APP_TIMEZONE=Europe/Paris
-MAX_DETAILED_ALERTS=200
+CONFLUENCE_TRACKING=false
 ```
 
 ---
 
-## 🚫 Filtrage des alertes
+## 🚀 Usage
 
-Par défaut, les alertes de statut de traitement de lots ayant pour titre `"Batche(s)"` (par exemple `Batche(s) OK`, `Batche(s) KO`, etc.) sont automatiquement filtrées et ne remontent pas dans le rapport final.
+### 🌟 Standalone Demo Mode (Zero Configuration Required)
 
----
-
-## 🚀 Utilisation
-
-### 🌟 Mode Démonstration Autonome (Tester immédiatement sans configuration)
-
-Vous pouvez lancer le projet instantanément **sans avoir besoin d'accès à un serveur Mattermost ni Confluence**. Un jeu d'alertes réaliste sur une architecture microservices et un registre Confluence simulé en mémoire illustrent l'ensemble des fonctionnalités (transitions de statuts automatiques, détection des récidives, alertes en cours avec porteurs, tri du bruit, archivage automatique) :
+Run the tool instantly **without needing access to any Mattermost or Confluence server**. Generates a realistic 7-day microservices incident dataset (40 alerts) and simulates the full Confluence lifecycle (reconciliation, recurrences, noise isolation, archiving):
 
 ```bash
 python main.py --demo
 ```
 
-Pour générer et ouvrir directement le rapport HTML dans votre navigateur :
+To generate and automatically open the report in your default browser:
 ```bash
 python main.py --demo --open
 ```
 
-En mode démo, le script génère **4 livrables HTML 100 % interconnectés** dans le dossier `output/` :
-1. `output/alertes.html` : Rapport visuel principal d'alerting (frise temporelle, badges, indicateurs et liens vers Confluence).
-2. `output/confluence_suivi.html` : Simulation web fidèle de la **page active Confluence** (pastilles de statut Atlassian AUI, tableau principal, palette de copier/coller et tableau secondaire de Bruit).
-3. `output/confluence_archive.html` : Simulation web de la **page d'archive Confluence** (alertes résolues de plus de 1 mois déplacées automatiquement).
-4. `output/confluence_stats.html` : Simulation web de la **page de statistiques Confluence** (journal de bord hebdomadaire avec rapport HTML en pièce jointe).
+In demo mode, the script generates **4 interconnected local HTML files** in `output/`:
+1. `output/alertes.html`: Main visual alerting report (interactive timeline, badges, KPIs, and links).
+2. `output/confluence_suivi.html`: Authentic Confluence Server rendering of the **active review board** (Atlassian AUI status lozenges, copy/paste palette, secondary noise table).
+3. `output/confluence_archive.html`: Confluence rendering of the **archive board** showing alerts resolved over 1 month ago.
+4. `output/confluence_stats.html`: Confluence rendering of the **weekly statistics log** with the HTML report attachment.
 
-*💡 Cliquez sur **« Consulter ou éditer cette alerte sur Confluence »** depuis le rapport d'alertes pour basculer directement sur la page Confluence simulée correspondante avec surlignage automatique de la ligne !*
+*💡 Click on **"Edit on Confluence ↗"** from the alerting report to jump directly to the corresponding row in `confluence_suivi.html` with smooth scrolling and blue row highlighting!*
 
 ---
 
-### Exécution standard (comportement d'origine, sans Confluence)
+### 📋 Command Line Interface (CLI) Options
 
-Par défaut, le script analyse les alertes sans interagir avec Confluence :
+| Option | Type / Values | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **`--demo`** | Flag | `false` | Runs standalone demo mode with in-memory simulated data. |
+| **`--open`** | Flag | `false` | Automatically opens the generated HTML report in the default browser. |
+| **`--hours`** | Strictly positive integer | `24` *(or `168` in `--demo`)* | Number of hours of history to analyze (e.g. `168` for 7 days). |
+| **`--output`** | File path | `output/alertes.html` | Custom output file path for the generated HTML report. |
+| **`--confluence-tracking`** | Boolean (`true`/`false`) or Flag | Env `CONFLUENCE_TRACKING` *(or `true` in `--demo`)* | Enables or disables Confluence synchronization and reconciliation. |
+
+*Note: `--suivi-confluence` is supported as a backward-compatible alias for `--confluence-tracking`.*
+
+---
+
+### Standard Execution (Mattermost only, without Confluence)
+
 ```bash
 python main.py
 ```
 
-### Exécution avec suivi Confluence activé (Point de suivi)
+### Execution with Confluence Action Tracking
 
-Active la synchronisation avec Confluence pour la semaine écoulée (168 heures) :
 ```bash
-python main.py --hours 168 --suivi-confluence
-# ou explicitement avec une valeur booléenne (true / false) :
-python main.py --hours 168 --suivi-confluence=true
-python main.py --hours 168 --suivi-confluence=false
+python main.py --hours 168 --confluence-tracking
+# or explicitly with a boolean:
+python main.py --hours 168 --confluence-tracking=true
+python main.py --hours 168 --confluence-tracking=false
 ```
 
-*Note : vous pouvez également activer ce mode via la variable d'environnement `SUIVI_CONFLUENCE=true`.*
-
-### 📋 Récapitulatif des options de la ligne de commande (CLI)
-
-| Option | Type / Valeurs | Valeur par défaut | Description |
-| :--- | :--- | :--- | :--- |
-| **`--demo`** | Flag | `false` | Lance le mode démo autonome avec simulation Mattermost et Confluence (aucun serveur externe requis). |
-| **`--open`** | Flag | `false` | Ouvre automatiquement le rapport HTML dans votre navigateur par défaut après génération. |
-| **`--hours`** | Entier strictement positif | `24` *(ou `168` en `--demo`)* | Nombre d'heures d'historique à analyser (ex : `168` pour 7 jours). |
-| **`--output`** | Chemin de fichier | `output/alertes.html` | Chemin personnalisé vers le fichier HTML du rapport généré. |
-| **`--suivi-confluence`** | Booléen (`true`/`false`) ou Flag | Variable `SUIVI_CONFLUENCE` *(ou `true` en `--demo`)* | Active ou désactive la réconciliation et la synchronisation Confluence. |
-
----
-
-### Spécifier une plage horaire personnalisée
+### Custom Time Window
 
 ```bash
 python main.py --hours 48
 ```
 
-### Spécifier un chemin de sortie pour le rapport
+### Custom Output File
 
 ```bash
-python main.py --output /chemin/vers/mon_rapport.html
+python main.py --output /path/to/custom_report.html
 ```
 
-### Lancer les tests unitaires
+### Running Automated Unit Tests
 
 ```bash
 python -m pytest -v
@@ -261,22 +199,49 @@ python -m pytest -v
 
 ---
 
-## 🔄 Automatisation GitLab CI/CD
+## 🏛️ Confluence Integration Architecture
 
-Le fichier `.gitlab-ci.yml` permet d'automatiser l'exécution hebdomadaire du rapport :
+The Confluence integration centers around **3 interconnected wiki pages**:
 
-1. **Variables de projet** : Dans GitLab (**Settings > CI/CD > Variables**), configurez :
+| Confluence Page | Role | Environment Variable | Default Identifier |
+| :--- | :--- | :--- | :--- |
+| **1. Active Review Board** | Main qualification table, secondary noise table, copy/paste lozenge palette, review checklist. | `CONFLUENCE_PAGE_ID` | `123456789` |
+| **2. Archive Board** | Permanent historical record of decisions on alerts resolved over 1 month ago (6 columns without status). | `CONFLUENCE_ARCHIVE_PAGE_ID` | `123456780` |
+| **3. Statistics Log** | Weekly journal tracking 12 evolution metrics run by run with the generated HTML report attached. | `CONFLUENCE_STATS_PAGE_ID` | `123456781` |
+
+### Active Board Columns:
+1. **Status**: `<ac:structured-macro ac:name="status">` (`NEW`, `UNATTENDED`, `IN PROGRESS`, `RECURRING`, `RESOLVED`, `NOISE`)
+2. **Alert Category**: Category description + `<ac:structured-macro ac:name="anchor">` for deep linking
+3. **Occurrences**: Current week occurrences
+4. **Last Seen in Mattermost**: Native `<time datetime="YYYY-MM-DD" />` tag + time
+5. **Assignee**: Team member responsible for the action item
+6. **Due Date**: Target resolution date (`<time>` or `-`)
+7. **Action Items (Review Meeting)**: Team decisions, tickets, and mitigation plan
+
+---
+
+## 🔄 GitLab CI/CD Automation
+
+The included `.gitlab-ci.yml` automates weekly execution:
+
+1. **Project Variables**: Under GitLab (**Settings > CI/CD > Variables**), configure:
    - `MATTERMOST_URL`
-   - `MATTERMOST_TOKEN` (variable masquée / masked)
+   - `MATTERMOST_TOKEN` (Masked)
    - `MATTERMOST_CHANNEL_ID`
    - `CONFLUENCE_URL`
-   - `CONFLUENCE_TOKEN` (variable masquée / masked)
-   - `CONFLUENCE_PAGE_ID` (défaut : `123456789`)
-   - `CONFLUENCE_ARCHIVE_PAGE_ID` (optionnel, défaut : `123456780`)
-   - `CONFLUENCE_STATS_PAGE_ID` (optionnel, défaut : `123456781`)
+   - `CONFLUENCE_TOKEN` (Masked)
+   - `CONFLUENCE_PAGE_ID`
+   - `CONFLUENCE_ARCHIVE_PAGE_ID` (Optional)
+   - `CONFLUENCE_STATS_PAGE_ID` (Optional)
 
-2. **Programmation (Schedule)** : Dans GitLab (**Build > Pipeline schedules**) :
-   - Interval Pattern : `30 10 * * 1` (tous les lundis à 10h30 heure locale Paris).
-   - Variables : `WEEKLY_HOURS="--hours=168"` (analyse des 7 derniers jours).
+2. **Schedule**: Under GitLab (**Build > Pipeline schedules**):
+   - Interval Pattern: `30 10 * * 1` (Every Monday at 10:30 AM).
+   - Variables: `WEEKLY_HOURS="--hours=168"`, `CONFLUENCE_TRACKING_ARG="--confluence-tracking=true"`.
 
-3. **Artefacts** : Le rapport `output/alertes.html` est conservé automatiquement dans les artefacts GitLab.
+3. **Artifacts**: The generated report `output/alertes.html` is automatically preserved as a job artifact.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

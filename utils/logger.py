@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class ColorFormatter(logging.Formatter):
     """
-    Formateur de logs avec couleurs ANSI pour la console.
+    Log formatter with ANSI colors for console output.
     """
     GREY = "\x1b[38;20m"
     GREEN = "\x1b[32;20m"
@@ -36,12 +36,12 @@ class ColorFormatter(logging.Formatter):
 
 def setup_logging(level: int = logging.INFO) -> None:
     """
-    Configure globalement le système de journalisation (logging) de l'application
-    avec un formateur couleur ANSI pour la console.
+    Globally configures the application logging system
+    with an ANSI color formatter for console output.
     """
     root_logger = logging.getLogger()
-    
-    # Ne configurer que s'il n'y a pas de handlers déjà définis
+
+    # Only configure if no handlers are already defined
     if not root_logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(ColorFormatter())
@@ -56,14 +56,14 @@ def print_alerting_summary(
     excluded_titles: list[str] | None = None,
 ) -> None:
     """
-    Affiche un encadré récapitulatif au lancement du traitement d'alerting.
+    Displays an initialization summary banner when alerting processing starts.
     """
     logger.info("========================================================")
-    logger.info("          INITIALISATION DU RAPPORT ALERTING            ")
+    logger.info("          ALERTING REPORT INITIALIZATION                ")
     logger.info("========================================================")
-    logger.info(" • Canal cible       : %s", channel_id or "Non configuré")
-    logger.info(" • Période analysée  : Dernières %d heures", hours)
-    logger.info(" • Fichier de sortie : %s", output_file)
+    logger.info(" • Target Channel  : %s", channel_id or "Not configured")
+    logger.info(" • Analyzed Period : Last %d hours", hours)
+    logger.info(" • Output File     : %s", output_file)
     if excluded_titles:
-        logger.info(" • Titres exclus     : %s", ", ".join(excluded_titles))
+        logger.info(" • Excluded Titles : %s", ", ".join(excluded_titles))
     logger.info("========================================================")
