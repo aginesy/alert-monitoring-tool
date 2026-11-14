@@ -2,20 +2,42 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 
-An automated production alerting pipeline designed to extract, categorize, and visualize Mattermost monitoring alerts while maintaining a bidirectional, persistent action item tracking registry on Atlassian Confluence.
+The script generates a report from a Mattermost channel and updates monitoring pages in Confluence to track alerts. 
 
 **This project is designed to address real production needs.**
 
 ---
+
+<a id="table-of-contents"></a>
+## 📑 Table of Contents
+
+- [Context](#context)
+- [Key Features](#key-features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+  - [🌟 Standalone Demo Mode](#demo-mode)
+  - [📋 CLI Options](#cli-options)
+  - [Standard Execution](#standard-execution)
+  - [Execution with Confluence Action Tracking](#confluence-tracking)
+  - [Custom Time Window](#custom-time-window)
+  - [Custom Output File](#custom-output-file)
+  - [Running Automated Unit Tests](#unit-tests)
+- [Confluence Integration Architecture](#confluence-architecture)
+- [GitLab CI/CD Automation](#gitlab-ci)
+
+---
+
+<a id="context"></a>
 ## Context
 
 As an Application Manager / SRE-oriented, I developed this script to meet the company’s needs for improving its alert monitoring policy.
 
-Mattermost was used as an alert notification tool: each new Prometheus alert was forwarded to a Mattermost channel, and then a notification was sent to the team. A “FIRING” alert message was sent when an alert was triggered, and a “RESOLVED” alert message was sent when an alert was resolved. 
+**Mattermost was used as an alert notification tool**: each new Prometheus alert was forwarded to a Mattermost channel, and then a notification was sent to the team. A “FIRING” alert message was sent when an alert was triggered, and a “RESOLVED” alert message was sent when an alert was resolved. 
 
-Tracking wasn't optimal at all because Mattermost is a messaging tool. A lot of information got lost as people scrolled through the channels, many alerts were no longer even looked at, and eventually the team could miss crucial alerts that needed to be analyzed.
+**Tracking wasn't optimal** at all because Mattermost is a messaging tool. A lot of information got lost as people scrolled through the channels, **many alerts were no longer even looked at**, and eventually the team could miss crucial alerts that needed to be analyzed.
 
-To address these issues, I developed this script using Gemini CLI to improve the inadequate alert tracking, which helped reduce the number of false positives, identify many recurring production alerts, and drill down to the root cause of the problems.
+To address these issues, I developed this script using Gemini CLI to **improve the inadequate alert tracking**, which helped reduce the number of false positives, identify many recurring production alerts, and drill down to the root cause of the problems.
 
 The script was automatically run every Monday morning by a GitLab pipeline to analyze the alerts from the previous week. We would meet right after the deliverables were generated to review the most impactful alerts and take the appropriate action.
 
@@ -24,6 +46,7 @@ We also ran the script locally from time to time to analyze a longer time frame�
 
 ---
 
+<a id="key-features"></a>
 ## Key Features
 
 ![Screenshot exemple from demo mode](docs/screenshots/01_alerting_report_timeline.png)
@@ -48,6 +71,7 @@ We also ran the script locally from time to time to analyze a longer time frame�
 
 ---
 
+<a id="installation"></a>
 ## Installation
 
 1. Navigate to the project directory:
@@ -70,6 +94,7 @@ We also ran the script locally from time to time to analyze a longer time frame�
 
 ---
 
+<a id="configuration"></a>
 ## Configuration
 
 Create a `.env` file at the root of `alerting/` (or copy `.env.example`):
@@ -98,9 +123,11 @@ CONFLUENCE_TRACKING=false
 
 ---
 
+<a id="usage"></a>
 ## Usage
 
-### 🌟 Standalone Demo Mode (Zero Configuration Required)
+<a id="demo-mode"></a>
+### Standalone Demo Mode (Zero Configuration Required)
 
 Run the tool instantly **without needing access to any Mattermost or Confluence server**. Generates a realistic 7-day microservices incident dataset (40 alerts) and simulates the full Confluence lifecycle (reconciliation, recurrences, noise isolation, archiving):
 
@@ -123,7 +150,8 @@ In demo mode, the script generates **4 interconnected local HTML files** in `out
 
 ---
 
-### 📋 Command Line Interface (CLI) Options
+<a id="cli-options"></a>
+### Command Line Interface (CLI) Options
 
 | Option | Type / Values | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -137,12 +165,14 @@ In demo mode, the script generates **4 interconnected local HTML files** in `out
 
 ---
 
+<a id="standard-execution"></a>
 ### Standard Execution (Mattermost only, without Confluence)
 
 ```bash
 python main.py
 ```
 
+<a id="confluence-tracking"></a>
 ### Execution with Confluence Action Tracking
 
 ```bash
@@ -152,18 +182,21 @@ python main.py --hours 168 --confluence-tracking=true
 python main.py --hours 168 --confluence-tracking=false
 ```
 
+<a id="custom-time-window"></a>
 ### Custom Time Window
 
 ```bash
 python main.py --hours 48
 ```
 
+<a id="custom-output-file"></a>
 ### Custom Output File
 
 ```bash
 python main.py --output /path/to/custom_report.html
 ```
 
+<a id="unit-tests"></a>
 ### Running Automated Unit Tests
 
 ```bash
@@ -172,6 +205,7 @@ python -m pytest -v
 
 ---
 
+<a id="confluence-architecture"></a>
 ## Confluence Integration Architecture
 
 The Confluence integration centers around **3 interconnected wiki pages**:
@@ -193,6 +227,7 @@ The Confluence integration centers around **3 interconnected wiki pages**:
 
 ---
 
+<a id="gitlab-ci"></a>
 ## GitLab CI/CD Automation
 
 The included `.gitlab-ci.yml` automates execution:
