@@ -1,0 +1,38 @@
+# Exécution hebdomadaire planifiée : tous les lundis à 10h30 (Cron : 30 10 * * 1)
+variables:
+  WEEKLY_HOURS: 
+    value: "--hours=168"
+    description: "Nombre d'heures pour analyser la semaine écoulée (7 jours * 24h = 168h)."
+  SUIVI_CONFLUENCE_ARG:
+    value: "--suivi-confluence=false"
+    description: "Activer le suivi et la synchronisation Confluence pour le point de suivi. (désactivée par défaut)"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+stages:
+  - generate_alerting_report
+
+generate_alerting_report: 
+  stage: generate_alerting_report 
+  cache:
+    key: pip-dependencies
+    paths:
+      - .cache/pip
+  script: 
+    - |
+      set -e
+      python3 -m venv venv
+      ./venv/bin/python3 -m pip install --upgrade pip
+      ./venv/bin/pip install -r requirements.txt
+      ./venv/bin/python3 main.py $WEEKLY_HOURS $SUIVI_CONFLUENCE_ARG
+      
+  artifacts:
+    paths:
+      - output/
+    expire_in: 1 week
+  retry: 2
+
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - if: '$CI_COMMIT_REF_NAME == "dev"'
+      when: manual

@@ -1,0 +1,22 @@
+# Configuration locale et secrets
+.env
+
+# Environnements virtuels
+venv/
+.venv/
+env/
+
+# Fichiers de cache Python et tests
+__pycache__/
+*/__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Fichiers générés (rapports HTML)
+output/
+
+# IDEs et éditeurs
+.vscode/
+.idea/
+*.swp
+*.swo
