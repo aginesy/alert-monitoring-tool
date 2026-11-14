@@ -1,22 +1,40 @@
 # 🚨 Mattermost Alerting & Confluence Action Tracking
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Code Style](https://img.shields.io/badge/code%20style-pep8-orange.svg)](https://pep8.org/)
 
-An automated production alerting pipeline designed to extract, deduplicate, categorize, and visualize Mattermost monitoring alerts while maintaining a bidirectional, persistent action item tracking registry on Atlassian Confluence Server / Data Center.
+An automated production alerting pipeline designed to extract, categorize, and visualize Mattermost monitoring alerts while maintaining a bidirectional, persistent action item tracking registry on Atlassian Confluence.
+
+This project is designed to address real production needs.
+
+
+![Screenshot exemple from demo mode](docs\screenshots\01_alerting_report_timeline.png)
+Screenshot exemple from demo mode
+
+---
+## Context
+
+As an Application Manager / SRE-oriented, I developed this script to meet the company’s needs for improving its alert monitoring policy.
+
+Mattermost was used as an alert notification tool: each new Prometheus alert was forwarded to a Mattermost channel, and then a notification was sent to the team. A “FIRING” alert message was sent when an alert was triggered, and a “RESOLVED” alert message was sent when an alert was resolved. 
+
+Tracking wasn't optimal at all because Mattermost is a messaging tool. A lot of information got lost as people scrolled through the channels, many alerts were no longer even looked at, and eventually the team could miss crucial alerts that needed to be analyzed.
+
+To address these issues, I developed this script using Gemini CLI to improve the inadequate alert tracking, which helped reduce the number of false positives, identify many recurring production alerts, and drill down to the root cause of the problems.
+
+The script was automatically run every Monday morning by a GitLab pipeline to analyze the alerts from the previous week. We would meet right after the deliverables were generated to review the most impactful alerts and take the appropriate action.
+
+We also ran the script locally from time to time to analyze a longer time frame—even spanning several years—to identify the most frequent and  impactful alerts.
+
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 - **⏱️ Interactive Chronological Timeline**:
   - Continuous linear visualization of alert triggers (`FIRING`) and resolutions (`RESOLVED`).
-  - Proportional positioning on an adaptive time axis with day markers, midnight separators, and weekly/monthly grouping.
+  - Proportional positioning on an adaptive time axis with day markers and weekly/monthly grouping.
   - Drill-down per category into months, days, and individual occurrences with direct links to Mattermost posts.
-- **🧠 Smart Categorization & Normalization**:
-  - Automatically strips ephemeral Kubernetes pod replica hashes (e.g., `-8578c8c7ff-wld7g`) and dynamic metric values (e.g., `(current : 91)`) to avoid category fragmentation.
-  - Automatically ignores configurable status batches (e.g., `Batche(s) OK/KO`).
+
 - **🔄 Bidirectional Confluence Action Tracking (6-State Lifecycle Machine)**:
   - **🔹 `NEW`**: First detection. Prompts root-cause investigation and team triage.
   - **⚪ `UNATTENDED`**: Unassigned alert awaiting triage. *Automatic countdown warning at 4 weeks, automatic purge after 1 month.*
@@ -28,50 +46,6 @@ An automated production alerting pipeline designed to extract, deduplicate, cate
   - **Active Board**: Primary review register with status palette, quick copy/paste helpers, and cross-navigation.
   - **Archive Board**: Clean 6-column historical record of resolved alerts (> 1 month).
   - **Weekly Statistics**: Automated weekly metrics log with the visual HTML report attached via REST API.
-- **🌟 Standalone Zero-Dependency Demo Mode (`--demo`, `--open`)**:
-  - Instantly test and showcase the full workflow in under **0.5 seconds** without needing Mattermost, Confluence, or Docker.
-  - Generates 4 interconnected local HTML deliverables including authentic Confluence web views with interactive anchor highlighting.
-- **🛡️ Resilient & Secure**:
-  - Built-in connection pooling and exponential backoff retry strategy (`urllib3.util.retry.Retry`).
-  - Strict HTML sanitization via `BeautifulSoup` preventing XSS injection from Confluence tables.
-  - Non-blocking design: continues generating local reports even if Confluence is temporarily unreachable.
-
----
-
-## 📁 Project Structure
-
-```text
-alerting/
-├── .gitlab-ci.yml              # GitLab CI/CD pipeline configuration (weekly automation)
-├── main.py                     # Application CLI entrypoint
-├── requirements.txt            # Required dependencies (requests, Jinja2, python-dotenv, beautifulsoup4)
-├── .env.example                # Example environment configuration template
-├── README.md                   # Project documentation
-├── config/
-│   ├── config.py               # Paths, defaults, timezone, and artifact link resolution
-│   ├── config_mattermost.py    # Mattermost credentials loader
-│   └── config_confluence.py    # Confluence credentials and page IDs loader
-├── clients/
-│   ├── mattermost_client.py    # Mattermost v4 REST API client with pagination
-│   └── confluence_client.py    # Confluence Server / Data Center REST client (XHTML storage)
-├── services/
-│   ├── alert_service.py        # Normalization, categorization, and timeline chart data model
-│   ├── tracking_service.py     # Reconciliation, Confluence XHTML storage parser/generator, state machine
-│   ├── demo_service.py         # In-memory Mattermost/Confluence mocks and web view exporter for demo mode
-│   └── template_renderer.py    # Jinja2 template rendering engine with caching and autoescape
-├── templates/
-│   └── alerting_template.html  # Standalone responsive HTML report template
-├── tests/
-│   ├── test_alert_service.py       # Unit tests for categorization and timeline model
-│   ├── test_confluence_client.py   # Unit tests for Confluence REST API client
-│   ├── test_demo_mode.py           # Unit tests for standalone demo mode and Confluence export
-│   ├── test_main_args.py           # Unit tests for CLI arguments and environment variables
-│   └── test_tracking_service.py    # Unit tests for normalization, reconciliation, and lifecycle
-├── utils/
-│   └── logger.py               # ANSI color console logger and initialization banner
-└── output/                     # Generated reports directory (.gitkeep preserved)
-    └── alertes.html
-```
 
 ---
 
@@ -86,7 +60,7 @@ alerting/
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Linux/macOS
-   # or on Windows:
+  # or on Windows:
    .\venv\Scripts\activate
    ```
 
@@ -222,21 +196,21 @@ The Confluence integration centers around **3 interconnected wiki pages**:
 
 ## 🔄 GitLab CI/CD Automation
 
-The included `.gitlab-ci.yml` automates weekly execution:
+The included `.gitlab-ci.yml` automates execution:
 
 1. **Project Variables**: Under GitLab (**Settings > CI/CD > Variables**), configure:
    - `MATTERMOST_URL`
-   - `MATTERMOST_TOKEN` (Masked)
+   - `MATTERMOST_TOKEN` 
    - `MATTERMOST_CHANNEL_ID`
    - `CONFLUENCE_URL`
-   - `CONFLUENCE_TOKEN` (Masked)
+   - `CONFLUENCE_TOKEN`
    - `CONFLUENCE_PAGE_ID`
-   - `CONFLUENCE_ARCHIVE_PAGE_ID` (Optional)
-   - `CONFLUENCE_STATS_PAGE_ID` (Optional)
+   - `CONFLUENCE_ARCHIVE_PAGE_ID` 
+   - `CONFLUENCE_STATS_PAGE_ID`
 
 2. **Schedule**: Under GitLab (**Build > Pipeline schedules**):
-   - Interval Pattern: `30 10 * * 1` (Every Monday at 10:30 AM).
-   - Variables: `WEEKLY_HOURS="--hours=168"`, `CONFLUENCE_TRACKING_ARG="--confluence-tracking=true"`.
+   - Interval Pattern: `30 10 * * 1` (Every Monday at 10:30 AM for example).
+   - Variables: `WEEKLY_HOURS="--hours=168"` (If you want to analyse alerts on a weekly basis for instance), `CONFLUENCE_TRACKING_ARG="--confluence-tracking=true"`.
 
 3. **Artifacts**: The generated report `output/alertes.html` is automatically preserved as a job artifact.
 
