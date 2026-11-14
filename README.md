@@ -39,9 +39,9 @@ As an Application Manager / SRE-oriented, I developed this script to meet the co
 
 To address these issues, I developed this script using Gemini CLI to **improve the inadequate alert tracking**, which helped reduce the number of false positives, identify many recurring production alerts, and drill down to the root cause of the problems.
 
-The script was automatically run every Monday morning by a GitLab pipeline to analyze the alerts from the previous week. We would meet right after the deliverables were generated to review the most impactful alerts and take the appropriate action.
+The script was automatically run every Monday morning by a GitLab pipeline to analyze the alerts from the previous week. We would meet right after the deliverables were generated to **review the most impactful alerts and take the appropriate action, noted on the Confluence pages**.
 
-We also ran the script locally from time to time to analyze a longer time frame—even spanning several years—to identify the most frequent and  impactful alerts.
+We also ran the script locally from time to time to analyze a longer time frame—even **spanning several years—to identify the most frequent and  impactful alerts**.
 
 
 ---
