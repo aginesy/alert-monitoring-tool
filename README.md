@@ -1,4 +1,4 @@
-# 🚨 Mattermost Alerting & Confluence Action Tracking
+# Mattermost Alerting & Confluence Action Tracking
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 
