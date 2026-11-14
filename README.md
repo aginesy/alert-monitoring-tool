@@ -6,10 +6,6 @@ An automated production alerting pipeline designed to extract, categorize, and v
 
 This project is designed to address real production needs.
 
-
-![Screenshot exemple from demo mode](docs\screenshots\01_alerting_report_timeline.png)
-Screenshot exemple from demo mode
-
 ---
 ## Context
 
@@ -29,6 +25,9 @@ We also ran the script locally from time to time to analyze a longer time frame�
 ---
 
 ## Key Features
+
+![Screenshot exemple from demo mode](docs/screenshots/01_alerting_report_timeline.png)
+*Interactive chronological timeline exemple from demo mode*
 
 - **⏱️ Interactive Chronological Timeline**:
   - Continuous linear visualization of alert triggers (`FIRING`) and resolutions (`RESOLVED`).
