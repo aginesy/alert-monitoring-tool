@@ -4,7 +4,7 @@
 
 An automated production alerting pipeline designed to extract, categorize, and visualize Mattermost monitoring alerts while maintaining a bidirectional, persistent action item tracking registry on Atlassian Confluence.
 
-This project is designed to address real production needs.
+**This project is designed to address real production needs.**
 
 ---
 ## Context
@@ -48,7 +48,7 @@ We also ran the script locally from time to time to analyze a longer time frame�
 
 ---
 
-## ⚙️ Installation
+## Installation
 
 1. Navigate to the project directory:
    ```bash
@@ -59,8 +59,8 @@ We also ran the script locally from time to time to analyze a longer time frame�
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Linux/macOS
-  # or on Windows:
-   .\venv\Scripts\activate
+  
+   .\venv\Scripts\activate # On Windows:
    ```
 
 3. Install dependencies:
@@ -70,7 +70,7 @@ We also ran the script locally from time to time to analyze a longer time frame�
 
 ---
 
-## 🔑 Configuration
+## Configuration
 
 Create a `.env` file at the root of `alerting/` (or copy `.env.example`):
 
@@ -98,7 +98,7 @@ CONFLUENCE_TRACKING=false
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### 🌟 Standalone Demo Mode (Zero Configuration Required)
 
@@ -172,7 +172,7 @@ python -m pytest -v
 
 ---
 
-## 🏛️ Confluence Integration Architecture
+## Confluence Integration Architecture
 
 The Confluence integration centers around **3 interconnected wiki pages**:
 
@@ -193,7 +193,7 @@ The Confluence integration centers around **3 interconnected wiki pages**:
 
 ---
 
-## 🔄 GitLab CI/CD Automation
+## GitLab CI/CD Automation
 
 The included `.gitlab-ci.yml` automates execution:
 
@@ -214,7 +214,3 @@ The included `.gitlab-ci.yml` automates execution:
 3. **Artifacts**: The generated report `output/alertes.html` is automatically preserved as a job artifact.
 
 ---
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
