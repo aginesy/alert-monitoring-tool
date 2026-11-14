@@ -50,21 +50,31 @@ We also ran the script locally from time to time to analyze a longer time frame�
 ## Key Features
 
 ![Screenshot exemple from demo mode](docs/screenshots/01_alerting_report_timeline.png)
-*Interactive chronological timeline exemple from demo mode*
+*Interactive chronological timeline displaying Mattermost alerts - exemple from demo mode*
 
-- **⏱️ Interactive Chronological Timeline**:
+- **Interactive Chronological Timeline**:
   - Continuous linear visualization of alert triggers (`FIRING`) and resolutions (`RESOLVED`).
   - Proportional positioning on an adaptive time axis with day markers and weekly/monthly grouping.
   - Drill-down per category into months, days, and individual occurrences with direct links to Mattermost posts.
 
-- **🔄 Bidirectional Confluence Action Tracking (6-State Lifecycle Machine)**:
+- **Bidirectional Confluence Action Tracking (6-State Lifecycle Machine)**:
   - **🔹 `NEW`**: First detection. Prompts root-cause investigation and team triage.
   - **⚪ `UNATTENDED`**: Unassigned alert awaiting triage. *Automatic countdown warning at 4 weeks, automatic purge after 1 month.*
   - **🔸 `IN PROGRESS`**: Action item assigned to an owner with target due date.
   - **🔺 `RECURRING`**: Automatically triggered if a previously resolved or archived alert fires again.
   - **✅ `RESOLVED`**: Team fix deployed and verified. *Automatically archived after 1 month.*
   - **🟤 `NOISE`**: Known incompressible noise, automatically isolated in a dedicated secondary table.
-- **📦 Multi-Page Confluence Ecosystem**:
+
+  ![Screenshot exemple from demo mode](docs/screenshots/02_confluence_active_review.png)
+*Confluence active review board - exemple from demo mode*
+
+![Screenshot exemple from demo mode](docs/screenshots/03_confluence_archive_board.png)
+*Confluence archive board - exemple from demo mode*
+
+![Screenshot exemple from demo mode](docs/screenshots/04_confluence_weekly_stats.png)
+*Confluence stats - exemple from demo mode*
+
+- **Multi-Page Confluence Ecosystem**:
   - **Active Board**: Primary review register with status palette, quick copy/paste helpers, and cross-navigation.
   - **Archive Board**: Clean 6-column historical record of resolved alerts (> 1 month).
   - **Weekly Statistics**: Automated weekly metrics log with the visual HTML report attached via REST API.
